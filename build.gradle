@@ -16,7 +16,7 @@ allprojects {
     repositories {
         google()
         mavenCentral()
-        maven { url "https://jitpack.io" } // <--- यह लाइन यहाँ जोड़नी है (सर्कल इमेज के लिए)
+        maven { url "https://jitpack.io" } 
     }
 }
 
