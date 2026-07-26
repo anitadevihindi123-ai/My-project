@@ -22,10 +22,10 @@ jobs:
         run: |
           sdkmanager --install "ndk;25.2.9519653" "cmake;3.22.1"
 
-      - name: Build with Gradle Action
-        uses: gradle/gradle-build-action@v3
-        with:
-          arguments: assembleDebug
+      - name: Build APK directly with Gradle
+        run: gradle assembleDebug
+        env:
+          ANDROID_HOME: ${{ steps.setup-android.outputs.android-home }}
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
