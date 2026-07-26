@@ -31,8 +31,8 @@ jobs:
         env:
           ANDROID_HOME: ${{ steps.setup-android.outputs.android-home }}
 
-      - name: Upload APK (Even if warnings occurred)
+      - name: Upload APK (Find anywhere and save)
         uses: actions/upload-artifact@v4
         with:
-          name: app-debug
-          path: app/build/outputs/apk/debug/app-debug.apk
+          name: App-APK-File
+          path: "**/*.apk"
