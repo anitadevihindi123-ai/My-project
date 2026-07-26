@@ -22,7 +22,12 @@ jobs:
         run: |
           sdkmanager --install "ndk;25.2.9519653" "cmake;3.22.1"
 
-      - name: Build APK directly with Gradle
+      - name: Setup Gradle 8.5
+        uses: gradle/actions/setup-gradle@v3
+        with:
+          gradle-version: '8.5'
+
+      - name: Build APK with Gradle 8.5
         run: gradle assembleDebug
         env:
           ANDROID_HOME: ${{ steps.setup-android.outputs.android-home }}
