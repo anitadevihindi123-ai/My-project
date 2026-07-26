@@ -7,6 +7,8 @@
 #include <mutex>
 #include <arm_neon.h>
 #include <android/hardware_buffer.h>
+#include <android/asset_manager.h>
+#include <android/asset_manager_jni.h>
 #include <dlfcn.h>
 
 class TrueHardwareBufferBridge {
@@ -67,6 +69,9 @@ struct MasterEngineContext {
     // Quantum Hyper-Reality Flags
     std::atomic<bool> npuOpenCLOffloadActive{true};
     std::atomic<float> motionVectorFlow{0.0f};
+
+    // Asset Manager Integration for Local Asset Path Linking
+    AAssetManager* assetManager = nullptr;
 };
 
 static MasterEngineContext* g_masterCtx = nullptr;
@@ -97,6 +102,16 @@ Java_com_my_newproject_truesingularityclass_nativeInitMasterEngine(JNIEnv *env, 
     }
 }
 
+// Asset Manager Initializer
+extern "C" JNIEXPORT void JNICALL
+Java_com_my_newproject_truesingularityclass_nativeInitAssetManager(JNIEnv *env, jobject thiz, jobject assetManagerObj) {
+    std::lock_guard<std::mutex> lock(g_engineMutex);
+    if (g_masterCtx != nullptr && assetManagerObj != nullptr) {
+        g_masterCtx->assetManager = AAssetManager_fromJava(env, assetManagerObj);
+    }
+}
+
+// Restored nativeGetZoomShader function
 extern "C" JNIEXPORT jstring JNICALL
 Java_com_my_newproject_truesingularityclass_nativeGetZoomShader(JNIEnv *env, jobject thiz, jfloat zoomFactor) {
     std::string info = "SINGULARITY_QUANTUM_GOD_TIER_ACTIVE_" + std::to_string(zoomFactor);

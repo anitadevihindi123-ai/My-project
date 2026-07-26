@@ -45,6 +45,7 @@ public class truesingularityclass {
 
     public native void nativeInitMasterEngine(long seed, int targetWidth, int targetHeight);
     public native String nativeGetZoomShader(float zoomFactor);
+    public native void nativeInitAssetManager(Object assetManagerObj);
     public native void nativeExecuteZeroCopyPipeline(Object hardwareBufferObj, float zoomFactor, long frameIndex);
     public native void nativeProcessDirectPixelBuffer(Bitmap targetBitmap, float zoomFactor, long frameIndex);
     public native void nativeExecuteMultiFrameRawStacking(Bitmap[] frameBitmaps);
@@ -111,6 +112,7 @@ public class truesingularityclass {
     private void initEngineCore() {
         initializeEnvironment();
         nativeInitMasterEngine(System.nanoTime(), 1920, 1080);
+            nativeInitAssetManager(context.getAssets());
 
         if (zoomTrackLayout != null) {
             indicatorView = new View(context);
