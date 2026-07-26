@@ -1,0 +1,63 @@
+plugins {
+    id 'com.android.application'
+}
+
+android {
+    compileSdk 34
+    
+    useLibrary 'org.apache.http.legacy'
+    
+    // Keystore का पक्का और ऑटोमैटिक सेटअप
+    signingConfigs {
+        release {
+            storeFile file('singularity-key.jks') 
+            storePassword '00000000' // यहाँ अपना Keystore पासवर्ड डाल देना
+            keyAlias 'core_alias'            
+            keyPassword '00000000'    // यहाँ भी वही पासवर्ड डाल देना
+        }
+    }
+    
+    defaultConfig {
+        applicationId "com.my.newproject"
+        namespace "com.my.newproject"
+        minSdkVersion 21
+        targetSdkVersion 34
+        versionCode 1
+        versionName "1.0"
+        
+        externalNativeBuild {
+            cmake {
+                cppFlags ""
+            }
+        }
+    }
+    
+    buildTypes {
+        release {
+            minifyEnabled true // जावा/कोटलिन कोड को सुरक्षित (Obfuscate) करने के लिए
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+            
+            // रिलीज बिल्ड को ऑटोमैटिक Keystore से जोड़ने के लिए
+            signingConfig signingConfigs.release
+        }
+    }
+    
+    buildFeatures {
+        viewBinding true
+    }
+    
+    externalNativeBuild {
+        cmake {
+            path file('src/main/cpp/CMakeLists.txt')
+            version '3.10.2'
+        }
+    }
+}
+
+dependencies {
+    implementation fileTree(dir: 'libs', include: ['*.jar'])
+    implementation 'androidx.appcompat:appcompat:1.7.1'
+    implementation 'com.google.android.material:material:1.12.0'
+    implementation 'com.google.android.gms:play-services-ads:23.4.0'
+    implementation 'de.hdodenhof:circleimageview:3.1.0'
+}
