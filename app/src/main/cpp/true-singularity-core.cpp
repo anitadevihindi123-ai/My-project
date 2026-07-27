@@ -5,7 +5,10 @@
 #include <algorithm>
 #include <vector>
 #include <mutex>
+#if defined(__ARM_NEON) || defined(__aarch64__) || defined(_M_ARM)
 #include <arm_neon.h>
+##define HAS_NEON_SUPPORT 1
+#endif
 #include <android/hardware_buffer.h>
 #include <android/asset_manager.h>
 #include <android/asset_manager_jni.h>
@@ -77,7 +80,7 @@ struct MasterEngineContext {
 static MasterEngineContext* g_masterCtx = nullptr;
 static std::mutex g_engineMutex;
 
-// ACES Filmic Tone Mapping Curve - Safe Version for All Hardware (32-bit & 64-bit)
+// ACES Filmic Tone Mapping Curve - Universal Adaptive Version
 inline float32x4_t aces_film_curve(float32x4_t x) {
     float a = 2.51f;
     float b = 0.03f;
@@ -89,7 +92,7 @@ inline float32x4_t aces_film_curve(float32x4_t x) {
     float32x4_t den = vmlaq_n_f32(vmulq_n_f32(x, c), x, d);
     den = vaddq_f32(den, vdupq_n_f32(e));
 
-    // Vector division ko safe banane ke liye values ko alag karke divide karna
+    // Safe division for all hardware types (MediaTek, Snapdragon, Helio, etc.)
     float* pNum = (float*)&num;
     float* pDen = (float*)&den;
     
@@ -100,6 +103,7 @@ inline float32x4_t aces_film_curve(float32x4_t x) {
     
     return vld1q_f32(res);
 }
+
 
 
 extern "C" JNIEXPORT void JNICALL
