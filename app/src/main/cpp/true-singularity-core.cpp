@@ -7,7 +7,7 @@
 #include <mutex>
 #if defined(__ARM_NEON) || defined(__aarch64__) || defined(_M_ARM)
 #include <arm_neon.h>
-##define HAS_NEON_SUPPORT 1
+#define HAS_NEON_SUPPORT 1
 #endif
 #include <android/hardware_buffer.h>
 #include <android/asset_manager.h>
