@@ -1,4 +1,4 @@
-name: Build Android APK Manually
+Name: Build Android APK Manually
 
 on: [push]
 
@@ -24,6 +24,13 @@ jobs:
 
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v3
+
+      # यह नया स्टेप जोड़ें ताकि SDK की समस्या कभी न आए
+      - name: Create local.properties
+        run: |
+          echo "sdk.dir=$ANDROID_HOME" > local.properties
+        env:
+          ANDROID_HOME: ${{ steps.setup-android.outputs.android-home }}
 
       - name: Run Build with Full Info to Catch Errors
         run: ./gradlew assembleDebug --info --stacktrace
