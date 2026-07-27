@@ -344,28 +344,29 @@ public class truesingularityclass {
             if (cameraIdList.length == 0) return;
             activeCameraId = cameraIdList[isBackSensor ? 0 : (cameraIdList.length > 1 ? 1 : 0)];
             
+                      imageReader = ImageReader.newInstance(1920, 1080, ImageFormat.YUV_420_888, 2);
             imageReader.setOnImageAvailableListener(new ImageReader.OnImageAvailableListener() {
-    @Override
-    public void onImageAvailable(ImageReader reader) {
-        Image image = reader.acquireLatestImage();
-        if (image != null) {
-            try {
-                // Yahan aapka C++ Hardware Buffer pipeline call hoga
-                // jisse har ek live frame par aapka processing code chalega
-                Object hwBufferObj = image.getHardwareBuffer(); 
-                if (hwBufferObj != null) {
-                    nativeExecuteZeroCopyPipeline(hwBufferObj, singularityZoom, globalFrameIndex);
-                    // Agar HardwareBuffer close karna ho ya managed ho
+                @Override
+                public void onImageAvailable(ImageReader reader) {
+                    Image image = reader.acquireLatestImage();
+                    if (image != null) {
+                        try {
+                            Object hwBufferObj = null;
+                            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
+                                hwBufferObj = image.getHardwareBuffer();
+                            }
+                            if (hwBufferObj != null) {
+                                globalFrameIndex++;
+                                nativeExecuteZeroCopyPipeline(hwBufferObj, singularityZoom, globalFrameIndex);
+                            }
+                        } catch (Exception e) {
+                            e.printStackTrace();
+                        } finally {
+                            image.close();
+                        }
+                    }
                 }
-            } catch (Exception e) {
-                e.printStackTrace();
-            } finally {
-                image.close(); // Frame process hone ke baad image release karein
-            }
-        }
-    }
-}, workerHandler);
-
+            }, workerHandler);
 
             if (ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) {
                 cameraManager.openCamera(activeCameraId, new CameraDevice.StateCallback() {
