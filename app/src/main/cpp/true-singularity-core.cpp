@@ -77,18 +77,30 @@ struct MasterEngineContext {
 static MasterEngineContext* g_masterCtx = nullptr;
 static std::mutex g_engineMutex;
 
-// ACES Filmic Tone Mapping Curve - NEON Vectorized
+// ACES Filmic Tone Mapping Curve - Safe Version for All Hardware (32-bit & 64-bit)
 inline float32x4_t aces_film_curve(float32x4_t x) {
     float a = 2.51f;
     float b = 0.03f;
     float c = 2.43f;
     float d = 0.59f;
     float e = 0.14f;
+    
     float32x4_t num = vmlaq_n_f32(vmulq_n_f32(x, a), x, b);
     float32x4_t den = vmlaq_n_f32(vmulq_n_f32(x, c), x, d);
     den = vaddq_f32(den, vdupq_n_f32(e));
-    return vdivq_f32(num, den);
+
+    // Vector division ko safe banane ke liye values ko alag karke divide karna
+    float* pNum = (float*)&num;
+    float* pDen = (float*)&den;
+    
+    float res[4];
+    for (int i = 0; i < 4; i++) {
+        res[i] = pNum[i] / pDen[i];
+    }
+    
+    return vld1q_f32(res);
 }
+
 
 extern "C" JNIEXPORT void JNICALL
 Java_com_my_newproject_truesingularityclass_nativeInitMasterEngine(JNIEnv *env, jobject thiz, jlong seed, jint targetWidth, jint targetHeight) {
