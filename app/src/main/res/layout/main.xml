@@ -97,20 +97,22 @@
 				android:id="@+id/textview3"
 				android:layout_width="wrap_content"
 				android:layout_height="wrap_content"
-				android:layout_marginLeft="145dp"
-				android:text="TextView"
-				android:textSize="12sp"
+				android:layout_alignParentTop="true"
+				android:layout_centerHorizontal="true"
+				android:layout_marginTop="20dp"
+				android:text="00:00"
+				android:textSize="14sp"
 				android:textColor="#FFFFFF" />
 			<LinearLayout
-				android:id="@+id/linear4"
-				android:layout_width="wrap_content"
-				android:layout_height="wrap_content"
-				android:layout_marginLeft="35dp"
-				android:layout_marginBottom="160dp"
-				android:padding="2dp"
-				android:background="@android:color/transparent"
-				android:orientation="horizontal"
-				android:layout_alignParentBottom="true">
+			android:id="@+id/linear4"
+			android:layout_width="wrap_content"
+			android:layout_height="wrap_content"
+			android:layout_marginLeft="35dp"
+			android:layout_marginBottom="160dp"
+			android:padding="2dp"
+			android:background="@drawable/border_box"
+			android:orientation="horizontal"
+			android:layout_alignParentBottom="true">
 				<TextView
 					android:id="@+id/textview4"
 					android:layout_width="wrap_content"
@@ -158,7 +160,7 @@
 					android:padding="8dp"
 					android:text="-"
 					android:textSize="12sp"
-					android:textColor="#FFFFFF" />
+					android:textColor="#2196F3" />
 				<TextView
 					android:id="@+id/textview10"
 					android:layout_width="wrap_content"
@@ -166,7 +168,7 @@
 					android:padding="8dp"
 					android:text="0"
 					android:textSize="12sp"
-					android:textColor="#FFFFFF" />
+					android:textColor="#E91E63" />
 				<TextView
 					android:id="@+id/textview11"
 					android:layout_width="wrap_content"
@@ -174,7 +176,7 @@
 					android:padding="8dp"
 					android:text="+"
 					android:textSize="12sp"
-					android:textColor="#FFFFFF" />
+					android:textColor="#F44336" />
 				<TextView
 					android:id="@+id/textview12"
 					android:layout_width="wrap_content"
@@ -234,4 +236,3 @@
 		</RelativeLayout>
 	</LinearLayout>
 </LinearLayout>
-
