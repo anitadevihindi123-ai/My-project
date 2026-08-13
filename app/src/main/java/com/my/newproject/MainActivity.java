@@ -38,6 +38,25 @@ public class MainActivity extends AppCompatActivity {
         ImageView btnGallery = findViewById(R.id.imageview1);
         ImageView btnShutter = findViewById(R.id.circleimageview1);
         ImageView btnFlip = findViewById(R.id.imageview2);
+                if (btnFlip != null) {
+            btnFlip.setOnClickListener(new View.OnClickListener() {
+                @Override
+                public void onClick(View v) {
+                    btnFlip.animate().rotationBy(360f).setDuration(300).withEndAction(new Runnable() {
+                        @Override
+                        public void run() {
+                            btnFlip.setRotation(0f);
+                        }
+                    }).start();
+
+                    if (cameraEngine != null) {
+                        cameraEngine.flipCameraAction();
+                    }
+                }
+            });
+        }
+
+        
         ImageView btnFlash = findViewById(R.id.imageview3);
         LinearLayout zoomLayout = findViewById(R.id.linear4);
 
