@@ -8,7 +8,7 @@ android {
     useLibrary("org.apache.http.legacy")
     
     signingConfigs {
-        release {
+        create("release") {
             storeFile = file("singularity-key.jks")
             storePassword = "00000000"
             keyAlias = "core_alias"
@@ -26,18 +26,26 @@ android {
         
         externalNativeBuild {
             cmake {
-                cppFlags = []
+                cppFlags.addAll(listOf())
             }
         }
     }
     
+    // 👉 यहाँ हमने APK से चारों टुकड़ों को बाहर रखने का नियम सेट कर दिया है
+    packaging {
+        resources.excludes.add("**/codeformer_part_aa")
+        resources.excludes.add("**/codeformer_part_ab")
+        resources.excludes.add("**/codeformer_part_ac")
+        resources.excludes.add("**/codeformer_part_ad")
+    }
+    
     buildTypes {
         release {
-            minifyEnabled = false
-            signingConfig = signingConfigs.release
+            isMinifyEnabled = false
+            signingConfig = signingConfigs.getByName("release")
         }
         debug {
-            minifyEnabled = false
+            isMinifyEnabled = false
         }
     }
     
@@ -54,9 +62,30 @@ android {
 }
 
 dependencies {
-    implementation(fileTree(dir: "libs", include: ["*.jar"]))
+    implementation(fileTree(mapOf("dir" to "libs", "include" to listOf("*.jar"))))
     implementation("androidx.appcompat:appcompat:1.7.1")
     implementation("com.google.android.material:material:1.12.0")
     implementation("com.google.android.gms:play-services-ads:23.4.0")
     implementation("de.hdodenhof:circleimageview:3.1.0")
+}
+
+// 👉 और यह रहा वो टास्क जो बिल्ड होने से पहले चारों टुकड़ों को जोड़कर सिंगल फाइल बना देगा
+tasks.register("mergeCodeFormerParts") {
+    doLast {
+        val assetsDir = file("src/main/assets")
+        val outputFile = File(assetsDir, "codeformer_traced.ncnn.bin")
+        
+        outputFile.outputStream().use { out ->
+            listOf("codeformer_part_aa", "codeformer_part_ab", "codeformer_part_ac", "codeformer_part_ad").forEach { partName ->
+                val partFile = File(assetsDir, partName)
+                if (partFile.exists()) {
+                    out.write(partFile.readBytes())
+                }
+            }
+        }
+    }
+}
+
+tasks.named("preBuild") {
+    dependsOn("mergeCodeFormerParts")
 }
