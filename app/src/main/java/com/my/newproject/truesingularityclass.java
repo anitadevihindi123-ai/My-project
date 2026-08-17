@@ -1,4 +1,4 @@
-Package com.my.newproject;
+package com.my.newproject;
 
 import android.Manifest;
 import android.content.ContentValues;
