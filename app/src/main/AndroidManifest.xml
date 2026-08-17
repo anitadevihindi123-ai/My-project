@@ -50,12 +50,6 @@
         </activity>
 
         <activity
-            android:name=".DebugActivity"
-            android:screenOrientation="portrait"
-            android:theme="@style/AppTheme.DebugActivity"
-            android:exported="false" />
-
-        <activity
             android:name="com.google.android.gms.ads.AdActivity"
             android:configChanges="keyboard|keyboardHidden|orientation|screenLayout|uiMode|screenSize|smallestScreenSize"
             android:exported="false"
