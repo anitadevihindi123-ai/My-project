@@ -110,7 +110,7 @@
 			android:layout_marginLeft="35dp"
 			android:layout_marginBottom="160dp"
 			android:padding="2dp"
-			android:background="@drawable/border_box"
+			android:background="@drawable/border_box.xml"
 			android:orientation="horizontal"
 			android:layout_alignParentBottom="true">
 				<TextView
