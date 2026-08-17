@@ -1,37 +1,35 @@
 plugins {
-    id("com.android.application")
+    id 'com.android.application'
 }
 
 android {
-    compileSdk = 34
+    compileSdk 34
     
-    useLibrary("org.apache.http.legacy")
+    useLibrary 'org.apache.http.legacy'
     
     signingConfigs {
-        create("release") {
-            storeFile = file("singularity-key.jks")
-            storePassword = "00000000"
-            keyAlias = "core_alias"
-            keyPassword = "00000000"
+        release {
+            storeFile file('singularity-key.jks')
+            storePassword '00000000'
+            keyAlias 'core_alias'
+            keyPassword '00000000'
         }
     }
     
     defaultConfig {
-        applicationId = "com.my.newproject"
-        namespace = "com.my.newproject"
-        minSdk = 21
-        targetSdk = 34
-        versionCode = 1
-        versionName = "1.0"
+        applicationId "com.my.newproject"
+        namespace "com.my.newproject"
+        minSdk 21
+        targetSdk 34
+        versionCode 1
+        versionName "1.0"
         
         externalNativeBuild {
             cmake {
-                arguments(
-                    "-DANDROID_ARM_MODE=arm", 
-                    "-DANDROID_STL=c++_shared",
-                    "-DCMAKE_CXX_CLANG_TIDY=clang-tidy;-checks=-*,modernize-*,-readability-*"
-                )
-                cppFlags.addAll(listOf("-fsanitize=address", "-fno-omit-frame-pointer"))
+                arguments "-DANDROID_ARM_MODE=arm", 
+                          "-DANDROID_STL=c++_shared",
+                          "-DCMAKE_CXX_CLANG_TIDY=clang-tidy;-checks=-*,modernize-*,-readability-*"
+                cppFlags "-fsanitize=address -fno-omit-frame-pointer"
             }
         }
     }
@@ -45,50 +43,50 @@ android {
     
     buildTypes {
         release {
-            isMinifyEnabled = false
-            signingConfig = signingConfigs.getByName("release")
+            minifyEnabled false
+            signingConfig signingConfigs.release
         }
         debug {
-            isMinifyEnabled = false
+            minifyEnabled false
         }
     }
     
     buildFeatures {
-        viewBinding = true
+        viewBinding true
     }
     
     externalNativeBuild {
         cmake {
-            path = file("src/main/cpp/CMakeLists.txt")
-            version = "3.22.1"
+            path file("src/main/cpp/CMakeLists.txt")
+            version "3.22.1"
         }
     }
 }
 
 dependencies {
-    implementation(fileTree(mapOf("dir" to "libs", "include" to listOf("*.jar"))))
-    implementation("androidx.appcompat:appcompat:1.7.1")
-    implementation("com.google.android.material:material:1.12.0")
-    implementation("com.google.android.gms:play-services-ads:23.4.0")
-    implementation("de.hdodenhof:circleimageview:3.1.0")
+    implementation fileTree(dir: 'libs', include: ['*.jar'])
+    implementation 'androidx.appcompat:appcompat:1.7.1'
+    implementation 'com.google.android.material:material:1.12.0'
+    implementation 'com.google.android.gms:play-services-ads:23.4.0'
+    implementation 'de.hdodenhof:circleimageview:3.1.0'
 }
 
-tasks.register("mergeCodeFormerParts") {
+tasks.register('mergeCodeFormerParts') {
     doLast {
-        val assetsDir = file("src/main/assets")
-        val outputFile = File(assetsDir, "codeformer_traced.ncnn.bin")
+        def assetsDir = file("src/main/assets")
+        def outputFile = new File(assetsDir, "codeformer_traced.ncnn.bin")
         
-        outputFile.outputStream().use { out ->
-            listOf("codeformer_part_aa", "codeformer_part_ab", "codeformer_part_ac", "codeformer_part_ad").forEach { partName ->
-                val partFile = File(assetsDir, partName)
+        outputFile.withOutputStream { out ->
+            ["codeformer_part_aa", "codeformer_part_ab", "codeformer_part_ac", "codeformer_part_ad"].forEach { partName ->
+                def partFile = new File(assetsDir, partName)
                 if (partFile.exists()) {
-                    out.write(partFile.readBytes())
+                    out.write(partFile.bytes)
                 }
             }
         }
     }
 }
 
-tasks.named("preBuild") {
-    dependsOn("mergeCodeFormerParts")
+tasks.named('preBuild') {
+    dependsOn('mergeCodeFormerParts')
 }
