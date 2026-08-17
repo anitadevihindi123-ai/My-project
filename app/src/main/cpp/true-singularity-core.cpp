@@ -130,12 +130,23 @@ public:
             VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME
         };
 
+               const char* validationLayers[] = {
+            "VK_LAYER_KHRONOS_validation"
+        };
+
         VkInstanceCreateInfo instInfo = {};
         instInfo.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
         instInfo.pApplicationInfo = &appInfo;
         instInfo.enabledExtensionCount = 2;
         instInfo.ppEnabledExtensionNames = instExtensions;
         
+        #ifdef DEBUG
+            instInfo.enabledLayerCount = 1;
+            instInfo.ppEnabledLayerNames = validationLayers;
+        #else
+            instInfo.enabledLayerCount = 0;
+        #endif
+
         if (vkCreateInstance(&instInfo, nullptr, &instance) != VK_SUCCESS) return;
 
         uint32_t devCount = 0;
