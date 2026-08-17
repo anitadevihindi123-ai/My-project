@@ -1,5 +1,6 @@
 package com.my.newproject;
 
+import android.view.View;
 import android.Manifest;
 import android.content.pm.PackageManager;
 import android.os.Bundle;
