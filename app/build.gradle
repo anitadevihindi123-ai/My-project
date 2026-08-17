@@ -26,12 +26,14 @@ android {
         
         externalNativeBuild {
             cmake {
-                cppFlags.addAll(listOf())
+                // 👉 यहाँ हमने ASan फ्लैग्स और C++ सेटिंग्स जोड़ दी हैं
+                arguments("-DANDROID_ARM_MODE=arm", "-DANDROID_STL=c++_shared")
+                cppFlags.addAll(listOf("-fsanitize=address", "-fno-omit-frame-pointer"))
             }
         }
     }
     
-    // 👉 यहाँ हमने APK से चारों टुकड़ों को बाहर रखने का नियम सेट कर दिया है
+    // 👉 APK से चारों टुकड़ों को बाहर रखने का नियम
     packaging {
         resources.excludes.add("**/codeformer_part_aa")
         resources.excludes.add("**/codeformer_part_ab")
@@ -69,7 +71,7 @@ dependencies {
     implementation("de.hdodenhof:circleimageview:3.1.0")
 }
 
-// 👉 और यह रहा वो टास्क जो बिल्ड होने से पहले चारों टुकड़ों को जोड़कर सिंगल फाइल बना देगा
+// 👉 बिल्ड होने से पहले चारों टुकड़ों को जोड़कर सिंगल फाइल बनाने वाला टास्क
 tasks.register("mergeCodeFormerParts") {
     doLast {
         val assetsDir = file("src/main/assets")
