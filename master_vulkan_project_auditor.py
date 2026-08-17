@@ -1,79 +1,101 @@
 import os
 import re
 
-# मास्टर चेकिंग और परफॉरमेंस ऑप्टिमाइज़ेशन रूल्स
-CHECKS = [
+# प्रोजेक्ट के सभी संभावित लूपहोल्स, एरर्स और अधूरी चीज़ों को पकड़ने के लिए मास्टर रूल्स
+COMPREHENSIVE_RULES = [
     {
-        "target": ["AndroidManifest.xml"],
-        "name": "Missing or Loose Android Permission/Component",
-        "regex": r"(<uses-permission|<activity|<service)",
-        "desc": "Check if hardware acceleration or required hardware features are explicitly declared."
+        "category": "JNI / Native Library Loading Error Risk",
+        "regex": r"(System\.loadLibrary|dlopen|dlsym)",
+        "desc": "Check if native library name matches exact .so file name and handle UnsatisfiedLinkError exceptions properly."
     },
     {
-        "target": [".cpp", ".h", ".cc"],
-        "name": "Vulkan Memory / Buffer Leak Risk (vkAllocateMemory)",
-        "regex": r"(vkAllocateMemory|vkCreateBuffer|vkCreateImage)",
-        "desc": "Vulkan memory allocated. Ensure corresponding vkFreeMemory or vkDestroyBuffer is called to prevent VRAM leaks on GPU."
+        "category": "Incomplete Code / Placeholder / Stub Risk",
+        "regex": r"(TODO|FIXME|throw\s+new\s+UnsupportedOperationException|NotImplementedError|pass\s*//)",
+        "desc": "Incomplete implementation found. This stub/placeholder will cause crashes or missing logic at runtime."
     },
     {
-        "target": [".cpp", ".h", ".cc"],
-        "name": "Vulkan Command Buffer Reset/Submit Bottleneck",
-        "regex": r"(vkBeginCommandBuffer|vkQueueSubmit)",
-        "desc": "Performance Tip: Avoid recreating command buffers every frame. Reuse them from a command pool to maximize GPU throughput."
+        "category": "Vulkan VRAM Memory Allocation & Leak Risk",
+        "regex": r"(vkAllocateMemory|vkCreateBuffer|vkCreateImage|vkCreateImageView)",
+        "desc": "Vulkan resource allocated. Ensure a corresponding free/destroy function exists in the cleanup lifecycle."
     },
     {
-        "target": [".java", ".kt"],
-        "name": "JNI Native Call Performance / Memory Risk",
-        "regex": r"(System\.loadLibrary|native\s+void|native\s+long)",
-        "desc": "Ensure heavy tensor/Vulkan structures passed via JNI use Direct ByteBuffers to avoid garbage collector overhead."
+        "category": "Vulkan Command Buffer / Performance Bottleneck",
+        "regex": r"(vkBeginCommandBuffer|vkQueueSubmit|vkResetCommandBuffer)",
+        "desc": "Performance Warning: Avoid recreating command buffers per frame inside the core rendering/compute loop."
+    },
+    {
+        "category": "Tensor & Multi-Threading Data Corruption Risk",
+        "regex": r"(ncnn::Mat|memcpy|vkMapMemory)",
+        "desc": "Multi-threading/Tensor access detected. Ensure thread synchronization (std::mutex) is used to avoid race conditions."
+    },
+    {
+        "category": "Android Manifest & Component Declaration Flaw",
+        "regex": r"(<uses-permission|<activity|<service|<application)",
+        "desc": "Verify permissions, hardware acceleration, and exported component flags are correctly configured."
     }
 ]
 
-def analyze_file(file_path):
-    with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
-        lines = f.readlines()
-        
-    issues_found = False
-    file_ext = os.path.splitext(file_path)[1]
+# जिन एक्सटेंशन और फोल्डर्स को स्कैन से बाहर रखना है (NCNN मॉडल्स और सिस्टम फोल्डर्स)
+EXCLUDED_EXTENSIONS = {".param", ".bin", ".weights", ".tflite", ".onnx", ".png", ".jpg", ".jpeg", ".so", ".zip", ".keystore", ".gradle"}
+EXCLUDED_DIRS = {".git", "build", ".github", ".gradle", "assets", "native-libs"}
+
+def scan_entire_file_line_by_line(file_path):
+    file_ext = os.path.splitext(file_path)[1].lower()
     file_name = os.path.basename(file_path)
 
+    if file_ext in EXCLUDED_EXTENSIONS:
+        return False
+
+    try:
+        with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
+            lines = f.readlines()
+    except Exception:
+        return False
+        
+    issues_found = False
+
+    # 🔍 लाइन 1 से लेकर आखिरी लाइन तक पूरा स्कैन
     for line_num, line in enumerate(lines, 1):
-        for check in CHECKS:
-            # चेक करें कि क्या यह फाइल इस रूल के टारगेट में है
-            if file_ext in check["target"] or file_name in check["target"]:
-                if re.search(check["regex"], line):
-                    # कमेंट्स को इग्नोर करें
-                    if line.strip().startswith("//") or line.strip().startswith("/*"):
-                        continue
-                        
-                    print(f"🔴 [AUDIT ALERT] File: {file_path}")
-                    print(f"   🔢 Line Number : {line_num}")
-                    print(f"   ⚠️ Issue/Area  : {check['name']}")
-                    print(f"   💻 Code Line   : {line.strip()}")
-                    print(f"   💡 Pro-Tip/Fix : {check['desc']}")
-                    print("-" * 65)
-                    issues_found = True
-                    
+        stripped = line.strip()
+        
+        # कमेंट्स या खाली लाइनों को छोड़ दें
+        if not stripped or stripped.startswith("//") or stripped.startswith("/*") or stripped.startswith("*") or stripped.startswith("<!--") or stripped.startswith("#"):
+            continue
+
+        for rule in COMPREHENSIVE_RULES:
+            if re.search(rule["regex"], line):
+                print(f"🔴 [FULL SCAN ALERT] File: {file_path}")
+                print(f"   🔢 Line Number     : {line_num}")
+                print(f"   ⚠️ Vulnerability   : {rule['category']}")
+                print(f"   💻 Flagged Code    : {stripped}")
+                print(f"   💡 Manual Fix Guide: {rule['desc']}")
+                print("-" * 75)
+                issues_found = True
+
     return issues_found
 
 def main():
-    print("🚀 Starting Master Vulkan, JNI & Manifest Deep Audit...")
-    total_issues = 0
+    print("🚀 Starting Full-Project Line-by-Line Comprehensive Auditor...")
+    total_files_scanned = 0
+    total_issues_files = 0
     
     for root, dirs, files in os.walk("."):
-        if ".git" in root or "build" in root or ".github" in root or ".gradle" in root:
-            continue
+        # सिस्टम फोल्डर और 'assets' (NCNN मॉडल्स) को सुरक्षित रखना
+        dirs[:] = [d for d in dirs if d not in EXCLUDED_DIRS]
+        
         for file in files:
             full_path = os.path.join(root, file)
-            if analyze_file(full_path):
-                total_issues += 1
+            total_files_scanned += 1
+            if scan_entire_file_line_by_line(full_path):
+                total_issues_files += 1
                 
-    if total_issues > 0:
-        print(f"\n❌ AUDIT FAILED: Found potential vulnerabilities, leaks or optimization flaws in {total_issues} files.")
-        print("💡 Fix the highlighted lines above to make your Vulkan/NCNN pipeline bulletproof.")
+    print(f"\n📂 Scan Completed: Scanned {total_files_scanned} files across the entire repository.")
+    if total_issues_files > 0:
+        print(f"❌ AUDIT FAILED: Found structural flaws, memory risks, or incomplete code in {total_issues_files} files.")
+        print("🛠️ Review every line number above and apply manual fixes with total precision.")
         exit(1)
     else:
-        print("\n✨ SUCCESS: Project architecture, Manifest, and Vulkan memory hooks look completely solid!")
+        print("\n✨ SUCCESS: Full-project line-by-line audit found zero vulnerabilities or loopholes!")
 
 if __name__ == "__main__":
     main()
