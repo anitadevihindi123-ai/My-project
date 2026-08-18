@@ -107,7 +107,7 @@ public:
         }
     }
 
-    uint32_t readKernelThermalRegister() {
+    auto readKernelThermalRegister() {
         FILE* fp = fopen("/sys/class/thermal/thermal_zone0/temp", "r");
         uint32_t temp = 40000;
         if (fp) {
@@ -598,7 +598,7 @@ Java_com_my_newproject_truesingularityclass_nativeExecuteMultiFrameRawStacking(J
 
     size_t validCount = lockedBuffers.size();
     if (validCount > 0 && baseWidth > 0 && baseHeight > 0) {
-        uint32_t* basePixels = static_cast<uint32_t*>(lockedBuffers[0]);
+        auto* basePixels = static_cast<uint32_t*>(lockedBuffers[0]);
         int totalPixels = baseWidth * baseHeight;
 
         #pragma omp parallel for schedule(static)
@@ -606,7 +606,7 @@ Java_com_my_newproject_truesingularityclass_nativeExecuteMultiFrameRawStacking(J
             float sumR = 0.0f, sumG = 0.0f, sumB = 0.0f;
 
             for (size_t f = 0; f < validCount; f++) {
-                uint32_t* fPix = static_cast<uint32_t*>(lockedBuffers[f]);
+                auto* fPix = static_cast<uint32_t*>(lockedBuffers[f]);
                 uint32_t px = fPix[p];
                 sumR += static_cast<float>((px >> 16) & 0xFF);
                 sumG += static_cast<float>((px >> 8) & 0xFF);
