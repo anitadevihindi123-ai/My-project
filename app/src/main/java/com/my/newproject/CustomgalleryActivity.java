@@ -213,7 +213,17 @@ public class CustomgalleryActivity extends AppCompatActivity {
 					}
 					
 					truesingularityclass.inAppGalleryData.add(0, newMap);
-					
+										try {
+						AppDatabase db = AppDatabase.getDatabase(CustomgalleryActivity.this);
+						ImageEntity entity = new ImageEntity();
+						entity.filePath = cachePath.getAbsolutePath();
+						entity.type = isVideo ? "video" : "photo";
+						entity.duration = isVideo ? "00:30" : "";
+						db.imageDao().insertImage(entity);
+					} catch (Exception ex) {
+						ex.printStackTrace();
+					}
+
 					runOnUiThread(() -> {
 						Toast.makeText(CustomgalleryActivity.this, "✨ NCNN AI द्वारा HD प्रोसेस होकर इन-ऐप गैलरी में सेव!", Toast.LENGTH_LONG).show();
 						finish();
