@@ -15,4 +15,8 @@ public interface ImageDao {
 
     @Query("DELETE FROM saved_images WHERE id = :id")
     void deleteImageById(int id);
+
+    // 🔴 फाइल पाथ से डेटाबेस डिलीट करने के लिए (नया जोड़ा गया)
+    @Query("DELETE FROM saved_images WHERE filePath = :path")
+    void deleteImageByPath(String path);
 }
