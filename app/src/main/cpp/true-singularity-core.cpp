@@ -613,9 +613,9 @@ Java_com_my_newproject_truesingularityclass_nativeExecuteMultiFrameRawStacking(J
                 sumB += static_cast<float>(px & 0xFF);
             }
 
-            uint8_t avgR = static_cast<uint8_t>(sumR / validCount);
-            uint8_t avgG = static_cast<uint8_t>(sumG / validCount);
-            uint8_t avgB = static_cast<uint8_t>(sumB / validCount);
+            auto avgR = static_cast<uint8_t>(sumR / validCount);
+            auto avgG = static_cast<uint8_t>(sumG / validCount);
+            auto avgB = static_cast<uint8_t>(sumB / validCount);
             uint32_t baseAlpha = basePixels[p] & 0xFF000000;
 
             basePixels[p] = baseAlpha | (static_cast<uint32_t>(avgR) << 16) | (static_cast<uint32_t>(avgG) << 8) | static_cast<uint32_t>(avgB);
@@ -633,7 +633,7 @@ extern "C" JNIEXPORT void JNICALL
 Java_com_my_newproject_truesingularityclass_nativeProcessAiEnhancement(JNIEnv *env, jclass clazz, jobject targetBitmap, jstring outputPath) {
     if (!targetBitmap || !outputPath || !g_finalEngine) return;
 
-    const char* outPathStr = env->GetStringUTFChars(outputPath, 0);
+    const char* outPathStr = env->GetStringUTFChars(outputPath,nullptr);
     std::string finalSavePath(outPathStr);
     env->ReleaseStringUTFChars(outputPath, outPathStr);
 
