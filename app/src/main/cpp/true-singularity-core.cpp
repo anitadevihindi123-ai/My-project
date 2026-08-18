@@ -13,7 +13,7 @@
 #include <sys/mman.h>
 #include <unistd.h>
 #include <dlfcn.h>
-//#include <net.h>
+#include <net.h>
 
 #define MAX_FRAMES_IN_FLIGHT 2
 
@@ -534,14 +534,6 @@ Java_com_my_newproject_truesingularityclass_nativeExecuteZeroCopyPipeline(
         frame.frameOutputView = cachedImg.vkImageView;
     }
 }
-
-// ==========================================
-// FINAL INTEGRATED JNI ENGINE FUNCTIONS
-// ==========================================
-
-static PureMetalEngine* g_finalEngine = nullptr;
-std::mutex g_finalMutex;
-
 // --- 1. ZERO-COPY PIPELINE FOR REAL-TIME PREVIEW ---
 extern "C" JNIEXPORT void JNICALL
 Java_com_my_newproject_truesingularityclass_nativeExecuteZeroCopyPipeline(
