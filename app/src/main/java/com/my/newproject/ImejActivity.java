@@ -426,7 +426,22 @@ _data.remove(currentPos);
 				public void onClick(View v) {
 					int currentPos = _holder.getAdapterPosition();
 					if (currentPos != RecyclerView.NO_POSITION && currentPos < _data.size()) {
-						_data.remove(currentPos);
+						    HashMap<String, Object> map = _data.get(currentPos);
+    String filePath = (String) map.get("file_path");
+    if (filePath == null) filePath = (String) map.get("uri");
+    
+    if (filePath != null) {
+        final String pathToDelete = filePath;
+        new Thread(() -> {
+            try {
+                AppDatabase db = AppDatabase.getDatabase(context);
+                db.imageDao().deleteImageByPath(pathToDelete);
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        }).start();
+    }
+_data.remove(currentPos);
 						notifyItemRemoved(currentPos);
 						notifyItemRangeChanged(currentPos, _data.size());
 						Toast.makeText(context, "🗑️ वीडियो डिलीट हो गया!", Toast.LENGTH_SHORT).show();
