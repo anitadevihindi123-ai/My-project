@@ -278,6 +278,16 @@ public class truesingularityclass {
                             photoMap.put("uri", photoFile.getAbsolutePath());
                             
                             inAppGalleryData.add(0, photoMap);
+                                                        try {
+                                AppDatabase db = AppDatabase.getDatabase(context);
+                                ImageEntity entity = new ImageEntity();
+                                entity.filePath = photoFile.getAbsolutePath();
+                                entity.type = "photo";
+                                entity.duration = "";
+                                db.imageDao().insertImage(entity);
+                            } catch (Exception ex) {
+                                ex.printStackTrace();
+                            }
 
                             uiHandler.post(new Runnable() {
                                 @Override
@@ -564,6 +574,16 @@ imageReader.setOnImageAvailableListener(new ImageReader.OnImageAvailableListener
             videoMap.put("uri", uniqueVideoId);
             
             inAppGalleryData.add(0, videoMap);
+                        try {
+                AppDatabase db = AppDatabase.getDatabase(context);
+                ImageEntity entity = new ImageEntity();
+                entity.filePath = uniqueVideoId;
+                entity.type = "video";
+                entity.duration = String.format(Locale.getDefault(), "%02d:%02d", mins, secs);
+                db.imageDao().insertImage(entity);
+            } catch (Exception ex) {
+                ex.printStackTrace();
+            }
 
             uiHandler.post(new Runnable() {
                 @Override
