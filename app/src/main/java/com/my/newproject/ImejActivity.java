@@ -58,24 +58,45 @@ public class ImejActivity extends AppCompatActivity {
 		setupEffectClickListeners();
 	}
 	
-	private void initializeLogic() {
-		listMap = truesingularityclass.inAppGalleryData;
+   	private void initializeLogic() {
+		// 1. पुरानी लिस्ट को खाली करो
+		listMap.clear();
+
+		// 2. Room डेटाबेस से सेव किया हुआ डेटा लोड करो
+		AppDatabase db = AppDatabase.getDatabase(this);
+		java.util.List<ImageEntity> savedList = db.imageDao().getAllImages();
+
+		// 3. डेटाबेस के डेटा को लिस्ट में भरो
+		if (savedList != null) {
+			for (ImageEntity entity : savedList) {
+				HashMap<String, Object> map = new HashMap<>();
+				map.put("file_path", entity.filePath);
+				map.put("type", entity.type);
+				map.put("duration", entity.duration);
+				listMap.add(map);
+			}
+		}
+
+		// 4. रिसाइक्लर व्यू सेटअप करो
 		binding.recyclerview1.setLayoutManager(new LinearLayoutManager(this));
 		
 		Recyclerview1Adapter adapter = new Recyclerview1Adapter(this, listMap);
 		binding.recyclerview1.setAdapter(adapter);
+
+		// 5. बटन के क्लिक्स
 		binding.imageview1.setOnClickListener(v -> {
 			v.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP);
 			android.content.Intent intent = new android.content.Intent(ImejActivity.this, MainActivity.class);
 			startActivity(intent);
 		});
-				binding.imageview2.setOnClickListener(v -> {
+		
+		binding.imageview2.setOnClickListener(v -> {
 			v.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP);
 			android.content.Intent intent = new android.content.Intent(ImejActivity.this, CustomgalleryActivity.class);
 			startActivity(intent);
 		});
-
 	}
+
 
 	private void setupEffectClickListeners() {
 		binding.textview1.setOnClickListener(v -> {
