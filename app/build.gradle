@@ -28,7 +28,8 @@ android {
             cmake {
                 arguments "-DANDROID_ARM_MODE=arm", 
                           "-DANDROID_STL=c++_shared",
-                          "-DCMAKE_CXX_CLANG_TIDY=clang-tidy;-checks=-*,modernize-*,-readability-*"
+                          "-DCMAKE_CXX_CLANG_TIDY=clang-tidy;-checks=-*,modernize-*,-readability-*",
+                          "-DPROJECT_ROOT=${rootDir}"
                 cppFlags "-fsanitize=address -fno-omit-frame-pointer"
             }
         }
@@ -55,11 +56,10 @@ android {
         viewBinding true
     }
     
-        externalNativeBuild {
+    externalNativeBuild {
         cmake {
             path file("src/main/cpp/CMakeLists.txt")
             version "3.22.1"
-            arguments "-DPROJECT_ROOT=${rootDir}"
         }
     }
 }
@@ -71,8 +71,8 @@ dependencies {
     implementation 'com.google.android.gms:play-services-ads:23.4.0'
     implementation 'de.hdodenhof:circleimageview:3.1.0'
     def room_version = "2.6.1"
-implementation "androidx.room:room-runtime:$room_version"
-annotationProcessor "androidx.room:room-compiler:$room_version"
+    implementation "androidx.room:room-runtime:$room_version"
+    annotationProcessor "androidx.room:room-compiler:$room_version"
 }
 
 tasks.register('mergeCodeFormerParts') {
