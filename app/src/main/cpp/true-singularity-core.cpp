@@ -308,7 +308,7 @@ Java_com_my_newproject_truesingularityclass_nativeExecuteZeroCopyPipeline(
     float thermalNorm = static_cast<float>(rawTemp) / 100000.0f;
     g_finalEngine->thermalLoad.store(thermalNorm);
 
-    if (thermalNorm > 0.85f && (frameIndex % 2 != 0)) return;
+    if (thermalNorm > 0.75f && (frameIndex % 2 != 0)) return;
 
     float gX = g_finalEngine->gyroShiftX.load();
     float gY = g_finalEngine->gyroShiftY.load();
