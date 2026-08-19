@@ -1,13 +1,12 @@
 cmake_minimum_required(VERSION 3.22.1)
 project("true-singularity-core")
 
-# 1. प्रोजेक्ट के रूट फोल्डर से सीधा NCNN का पाथ सेट करना
-include_directories(${CMAKE_SOURCE_DIR}/ncnn/include)
+# अब यह चुपचाप app/src/main/cpp/ncnn से उठा लेगा क्योंकि हमने एक्शन में वहीं कॉपी करवा दिया है
+include_directories(ncnn/include)
 
-# 2. प्रोजेक्ट के रूट फोल्डर से सही आर्किटेक्चर की लाइब्रेरी उठाना
 add_library(ncnn STATIC IMPORTED)
 set_target_properties(ncnn PROPERTIES IMPORTED_LOCATION
-    ${CMAKE_SOURCE_DIR}/ncnn/lib/${ANDROID_ABI}/libncnn.a)
+    ${CMAKE_CURRENT_SOURCE_DIR}/ncnn/lib/${ANDROID_ABI}/libncnn.a)
 
 add_library(
     true-singularity-core
