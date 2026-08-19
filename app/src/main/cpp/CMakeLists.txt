@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.22.1)
+Cmake_minimum_required(VERSION 3.22.1)
 project("true-singularity-core")
 
 # अब यह सीधा Gradle से मिले ${PROJECT_ROOT} का इस्तेमाल करेगा (कोई पाथ भटकने का चांस नहीं)
@@ -23,3 +23,4 @@ target_link_libraries(
     ${log-lib}
     ${android-lib}
 )
+//Oo bhai
