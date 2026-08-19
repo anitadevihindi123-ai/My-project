@@ -6,7 +6,7 @@ include_directories(${PROJECT_ROOT}/ncnn/include)
 
 add_library(ncnn STATIC IMPORTED)
 set_target_properties(ncnn PROPERTIES IMPORTED_LOCATION
-    ${PROJECT_ROOT}/ncnn/lib/${ANDROID_ABI}/libncnn.a)
+    ${PROJECT_ROOT}/ncnn/${ANDROID_ABI}/lib/libncnn.a)
 
 add_library(
     true-singularity-core
