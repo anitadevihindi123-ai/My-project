@@ -1,13 +1,12 @@
 cmake_minimum_required(VERSION 3.22.1)
 project("true-singularity-core")
 
-# app/src/main/cpp से 4 कदम पीछे जाकर सीधे रूट वाले ncnn से हेडर उठाना
-include_directories(${CMAKE_CURRENT_SOURCE_DIR}/../../../../ncnn/include)
+# अब यह सीधा Gradle से मिले ${PROJECT_ROOT} का इस्तेमाल करेगा (कोई पाथ भटकने का चांस नहीं)
+include_directories(${PROJECT_ROOT}/ncnn/include)
 
-# 4 कदम पीछे जाकर रूट वाले ncnn से सही आर्किटेक्चर की लाइब्रेरी उठाना
 add_library(ncnn STATIC IMPORTED)
 set_target_properties(ncnn PROPERTIES IMPORTED_LOCATION
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../../../ncnn/lib/${ANDROID_ABI}/libncnn.a)
+    ${PROJECT_ROOT}/ncnn/lib/${ANDROID_ABI}/libncnn.a)
 
 add_library(
     true-singularity-core
