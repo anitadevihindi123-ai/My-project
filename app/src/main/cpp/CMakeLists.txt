@@ -1,48 +1,43 @@
 cmake_minimum_required(VERSION 3.22.1)
 project("true-singularity-core")
 
-# प्रोजेक्ट का रूट पाथ सेट करते हैं ताकि कुत्ता भटके नहीं
+# प्रोजेक्ट का रूट पाथ
 get_filename_component(PROJECT_ROOT "${CMAKE_SOURCE_DIR}/../../../" ABSOLUTE)
 
-# 1. हेडर फाइल (net.h) के लिए स्मार्ट हंटिंग (जो सीधे ANDROID_ABI के हिसाब से ढूंढेगा)
+# 1. हेडर फाइल के लिए सीधा और पक्का पाथ (जो डबल फोल्डर या नेस्टेड लेयर को भी पकड़ लेगा)
 find_path(NCNN_INCLUDE_DIR 
-    NAMES ncnn/net.h
+    NAMES net.h
     PATHS 
-        "${PROJECT_ROOT}/ncnn"
-        "${CMAKE_SOURCE_DIR}/ncnn"
-    PATH_SUFFIXES 
-        "${ANDROID_ABI}/include"
-        "arm64-v8a/include"
-        "armeabi-v7a/include"
-        "include"
+        "${PROJECT_ROOT}/ncnn/${ANDROID_ABI}/include"
+        "${PROJECT_ROOT}/ncnn/${ANDROID_ABI}/include/include"
+        "${PROJECT_ROOT}/ncnn/arm64-v8a/include"
+        "${PROJECT_ROOT}/ncnn/arm64-v8a/include/include"
+        "${PROJECT_ROOT}/ncnn/armeabi-v7a/include"
+        "${PROJECT_ROOT}/ncnn/armeabi-v7a/include/include"
+    PATH_SUFFIXES ncnn
 )
 
-# 2. लाइब्रेरी (libncnn.a) के लिए स्मार्ट हंटिंग
+# 2. लाइब्रेरी के लिए सीधा और पक्का पाथ
 find_library(NCNN_LIBRARY 
     NAMES ncnn
     PATHS 
-        "${PROJECT_ROOT}/ncnn"
-        "${CMAKE_SOURCE_DIR}/ncnn"
-    PATH_SUFFIXES 
-        "${ANDROID_ABI}/lib"
-        "arm64-v8a/lib"
-        "armeabi-v7a/lib"
-        "lib"
+        "${PROJECT_ROOT}/ncnn/${ANDROID_ABI}/lib"
+        "${PROJECT_ROOT}/ncnn/arm64-v8a/lib"
+        "${PROJECT_ROOT}/ncnn/armeabi-v7a/lib"
 )
 
-# सुरक्षा जांच: अगर कुत्ता खाली हाथ लौटा, तो साफ़-साफ़ एरर बताएगा
+# सुरक्षा जांच: अगर फिर भी न मिले तो साफ़ पता चल जाए
 if(NOT NCNN_INCLUDE_DIR)
-    message(FATAL_ERROR "भाई! ncnn/net.h नहीं मिली। पाथ चेक कर ले।")
+    message(FATAL_ERROR "भाई! net.h इस पाथ पर नहीं मिल रही। पाथ चेक कर।")
 endif()
 
 if(NOT NCNN_LIBRARY)
-    message(FATAL_ERROR "भाई! libncnn.a नहीं मिली। पाथ चेक कर ले।")
+    message(FATAL_ERROR "भाई! libncnn.a नहीं मिल रही। पाथ चेक कर।")
 endif()
 
 message(STATUS "सफलता! NCNN Include मिला: ${NCNN_INCLUDE_DIR}")
 message(STATUS "सफलता! NCNN Library मिली: ${NCNN_LIBRARY}")
 
-# जो ढूंढा है, उसे यहाँ जोड़ दो
 include_directories(${NCNN_INCLUDE_DIR})
 
 add_library(ncnn STATIC IMPORTED)
