@@ -1,16 +1,15 @@
 cmake_minimum_required(VERSION 3.22.1)
 project("true-singularity-core")
 
-# --- यहाँ हमने 4 कदम पीछे जाकर सीधे मेन रूट फोल्डर ('My-project') को पकड़ लिया है ---
-get_filename_component(PROJECT_ROOT "${CMAKE_SOURCE_DIR}/../../../../" ABSOLUTE)
+# अगर Gradle से पाथ न मिले, तो 4 कदम पीछे जाकर रूट सेट कर लो
+if(NOT PROJECT_ROOT)
+    get_filename_component(PROJECT_ROOT "${CMAKE_SOURCE_DIR}/../../../../" ABSOLUTE)
+endif()
 
-message(STATUS "===== FINAL CORRECT PATH START =====")
-message(STATUS "PROJECT_ROOT is: ${PROJECT_ROOT}")
-message(STATUS "CMAKE_SOURCE_DIR is: ${CMAKE_SOURCE_DIR}")
+message(STATUS "FINAL PROJECT_ROOT is: ${PROJECT_ROOT}")
 message(STATUS "Current ANDROID_ABI is: ${ANDROID_ABI}")
-message(STATUS "===== FINAL CORRECT PATH END =======")
 
-# 1. हेडर फाइल के लिए सही पाथ
+# 1. हेडर फाइल के लिए सटीक पाथ
 find_path(NCNN_INCLUDE_DIR 
     NAMES net.h
     PATHS 
@@ -20,7 +19,7 @@ find_path(NCNN_INCLUDE_DIR
     PATH_SUFFIXES ncnn
 )
 
-# 2. लाइब्रेरी के लिए सही पाथ
+# 2. लाइब्रेरी के लिए सटीक पाथ
 find_library(NCNN_LIBRARY 
     NAMES ncnn
     PATHS 
@@ -29,19 +28,19 @@ find_library(NCNN_LIBRARY
         "${PROJECT_ROOT}/ncnn/armeabi-v7a/lib"
 )
 
-# सुरक्षा जांच: अगर फिर भी न मिले तो साफ़ पता चल जाए
+# सुरक्षा जांच: फाइल न मिलने पर साफ एरर बताएगा
 if(NOT NCNN_INCLUDE_DIR)
-    message(FATAL_ERROR "भाई! net.h अभी भी नहीं मिली। पाथ चेक कर।")
+    message(FATAL_ERROR "भाई! net.h इस पाथ पर नहीं मिली: ${PROJECT_ROOT}/ncnn")
 endif()
 
 if(NOT NCNN_LIBRARY)
-    message(FATAL_ERROR "भाई! libncnn.a अभी भी नहीं मिली। पाथ चेक कर।")
+    message(FATAL_ERROR "भाई! libncnn.a इस पाथ पर नहीं मिली: ${PROJECT_ROOT}/ncnn")
 endif()
 
 message(STATUS "सफलता! NCNN Include मिला: ${NCNN_INCLUDE_DIR}")
 message(STATUS "सफलता! NCNN Library मिली: ${NCNN_LIBRARY}")
 
-# जो ढूंढा है, उसे यहाँ जोड़ दो
+# लाइब्रेरी और हेडर जोड़ो
 include_directories(${NCNN_INCLUDE_DIR})
 
 add_library(ncnn STATIC IMPORTED)
