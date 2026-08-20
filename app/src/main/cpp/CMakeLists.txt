@@ -1,15 +1,16 @@
 cmake_minimum_required(VERSION 3.22.1)
 project("true-singularity-core")
 
-# अगर Gradle से पाथ न मिले, तो 4 कदम पीछे जाकर रूट सेट कर लो
-if(NOT PROJECT_ROOT)
-    get_filename_component(PROJECT_ROOT "${CMAKE_SOURCE_DIR}/../../../../" ABSOLUTE)
-endif()
+# सीधा और पक्का तरीका: CMAKE_SOURCE_DIR से 4 कदम पीछे जाकर My-project रूट सेट कर लो
+get_filename_component(PROJECT_ROOT "${CMAKE_SOURCE_DIR}/../../../../" ABSOLUTE)
 
-message(STATUS "FINAL PROJECT_ROOT is: ${PROJECT_ROOT}")
-message(STATUS "Current ANDROID_ABI is: ${ANDROID_ABI}")
+message(STATUS "===== ABSOLUTE PATH CHECK =====")
+message(STATUS "CMAKE_SOURCE_DIR: ${CMAKE_SOURCE_DIR}")
+message(STATUS "FIXED PROJECT_ROOT: ${PROJECT_ROOT}")
+message(STATUS "ANDROID_ABI: ${ANDROID_ABI}")
+message(STATUS "===============================")
 
-# 1. हेडर फाइल के लिए सटीक पाथ
+# 1. हेडर फाइल ढूंढने का पक्का रास्ता
 find_path(NCNN_INCLUDE_DIR 
     NAMES net.h
     PATHS 
@@ -19,7 +20,7 @@ find_path(NCNN_INCLUDE_DIR
     PATH_SUFFIXES ncnn
 )
 
-# 2. लाइब्रेरी के लिए सटीक पाथ
+# 2. लाइब्रेरी ढूंढने का पक्का रास्ता
 find_library(NCNN_LIBRARY 
     NAMES ncnn
     PATHS 
@@ -28,17 +29,17 @@ find_library(NCNN_LIBRARY
         "${PROJECT_ROOT}/ncnn/armeabi-v7a/lib"
 )
 
-# सुरक्षा जांच: फाइल न मिलने पर साफ एरर बताएगा
+# अगर फाइल न मिले तो साफ़-साफ़ एरर बताएगा
 if(NOT NCNN_INCLUDE_DIR)
-    message(FATAL_ERROR "भाई! net.h इस पाथ पर नहीं मिली: ${PROJECT_ROOT}/ncnn")
+    message(FATAL_ERROR "त्रुटि: net.h इस पाथ पर नहीं मिली -> ${PROJECT_ROOT}/ncnn")
 endif()
 
 if(NOT NCNN_LIBRARY)
-    message(FATAL_ERROR "भाई! libncnn.a इस पाथ पर नहीं मिली: ${PROJECT_ROOT}/ncnn")
+    message(FATAL_ERROR "त्रुटि: libncnn.a इस पाथ पर नहीं मिली -> ${PROJECT_ROOT}/ncnn")
 endif()
 
-message(STATUS "सफलता! NCNN Include मिला: ${NCNN_INCLUDE_DIR}")
-message(STATUS "सफलता! NCNN Library मिली: ${NCNN_LIBRARY}")
+message(STATUS "बल्ले-बल्ले! NCNN Include मिला: ${NCNN_INCLUDE_DIR}")
+message(STATUS "बल्ले-बल्ले! NCNN Library मिली: ${NCNN_LIBRARY}")
 
 # लाइब्रेरी और हेडर जोड़ो
 include_directories(${NCNN_INCLUDE_DIR})
