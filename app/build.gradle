@@ -30,8 +30,8 @@ android {
             cmake {
                 arguments "-DANDROID_ARM_MODE=arm", 
                           "-DANDROID_STL=c++_shared",
-                          "-DCMAKE_CXX_CLANG_TIDY=clang-tidy;-checks=-*,modernize-*,-readability-*;-header-filter=.*/src/main/cpp/.*",
- "-DPROJECT_ROOT=${rootDir}"
+                          "-DPROJECT_ROOT=${rootDir}"
+                          "-DCMAKE_CXX_CLANG_TIDY=clang-tidy;-checks=-*,modernize-*,-readability-*",
                 cppFlags "-fsanitize=address -fno-omit-frame-pointer"
             }
         }
