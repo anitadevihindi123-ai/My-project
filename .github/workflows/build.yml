@@ -36,14 +36,14 @@ jobs:
         run: ./gradlew lintDebug
         env:
           ANDROID_HOME: ${{ steps.setup-android.outputs.android-home }}
-      - name: Patch simplevk.h for NDK Clash
+       - name: 🔥 Nuke simplevk.h Conflicts
         run: |
           SIMPLEVK_PATH="ncnn/arm64-v8a/include/ncnn/simplevk.h"
           if [ -f "$SIMPLEVK_PATH" ]; then
-            sed -i '1i #ifndef VULKAN_H_\n#define VULKAN_H_\n#endif' "$SIMPLEVK_PATH"
-            echo "Patched simplevk.h successfully!"
+            echo "Emptying simplevk.h to prevent NDK redefinition errors..."
+            > "$SIMPLEVK_PATH"
+            echo "Done! File is now empty."
           fi
-
       - name: Run Build
         run: ./gradlew assembleDebug --quiet
         env:
