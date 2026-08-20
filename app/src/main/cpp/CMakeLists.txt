@@ -62,4 +62,3 @@ target_link_libraries(
     ${log-lib}
     ${android-lib}
 )
-
