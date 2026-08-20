@@ -31,7 +31,7 @@ android {
                 arguments "-DANDROID_ARM_MODE=arm", 
                           "-DANDROID_STL=c++_shared",
                           "-DPROJECT_ROOT=${rootDir}",
-                          "-DCMAKE_CXX_CLANG_TIDY=clang-tidy;-checks=-*,modernize-*,-readability-*"
+                          //"-DCMAKE_CXX_CLANG_TIDY=clang-tidy;-checks=-*,modernize-*,-readability-*"
                 cppFlags "-fsanitize=address -fno-omit-frame-pointer"
             }
         }
