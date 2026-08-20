@@ -31,6 +31,7 @@ android {
                 arguments "-DANDROID_ARM_MODE=arm", 
                           "-DANDROID_STL=c++_shared",
                           "-DPROJECT_ROOT=${rootDir}"
+                           "-DNCNN_SIMPLEVK=OFF"  
                 cppFlags "-fsanitize=address -fno-omit-frame-pointer"
             }
         }
