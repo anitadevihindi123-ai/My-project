@@ -1,15 +1,16 @@
 cmake_minimum_required(VERSION 3.22.1)
 project("true-singularity-core")
 
-# --- यह रही वो डीबगिंग लाइन्स, इन्हें एकदम ऊपर रखा है ---
-get_filename_component(PROJECT_ROOT "${CMAKE_SOURCE_DIR}/../../../" ABSOLUTE)
-message(STATUS "===== DEBUG INFO START =====")
+# --- यहाँ हमने 4 कदम पीछे जाकर सीधे मेन रूट फोल्डर ('My-project') को पकड़ लिया है ---
+get_filename_component(PROJECT_ROOT "${CMAKE_SOURCE_DIR}/../../../../" ABSOLUTE)
+
+message(STATUS "===== FINAL CORRECT PATH START =====")
 message(STATUS "PROJECT_ROOT is: ${PROJECT_ROOT}")
 message(STATUS "CMAKE_SOURCE_DIR is: ${CMAKE_SOURCE_DIR}")
 message(STATUS "Current ANDROID_ABI is: ${ANDROID_ABI}")
-message(STATUS "===== DEBUG INFO END =======")
+message(STATUS "===== FINAL CORRECT PATH END =======")
 
-# 1. हेडर फाइल के लिए स्मार्ट हंटिंग
+# 1. हेडर फाइल के लिए सही पाथ
 find_path(NCNN_INCLUDE_DIR 
     NAMES net.h
     PATHS 
@@ -19,7 +20,7 @@ find_path(NCNN_INCLUDE_DIR
     PATH_SUFFIXES ncnn
 )
 
-# 2. लाइब्रेरी के लिए स्मार्ट हंटिंग
+# 2. लाइब्रेरी के लिए सही पाथ
 find_library(NCNN_LIBRARY 
     NAMES ncnn
     PATHS 
@@ -28,13 +29,13 @@ find_library(NCNN_LIBRARY
         "${PROJECT_ROOT}/ncnn/armeabi-v7a/lib"
 )
 
-# सुरक्षा जांच: अगर कुत्ता खाली हाथ लौटा, तो साफ़-साफ़ एरर बताएगा
+# सुरक्षा जांच: अगर फिर भी न मिले तो साफ़ पता चल जाए
 if(NOT NCNN_INCLUDE_DIR)
-    message(FATAL_ERROR "भाई! net.h नहीं मिली। पाथ चेक कर ले।")
+    message(FATAL_ERROR "भाई! net.h अभी भी नहीं मिली। पाथ चेक कर।")
 endif()
 
 if(NOT NCNN_LIBRARY)
-    message(FATAL_ERROR "भाई! libncnn.a नहीं मिली। पाथ चेक कर ले।")
+    message(FATAL_ERROR "भाई! libncnn.a अभी भी नहीं मिली। पाथ चेक कर।")
 endif()
 
 message(STATUS "सफलता! NCNN Include मिला: ${NCNN_INCLUDE_DIR}")
