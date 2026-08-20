@@ -1,0 +1,3 @@
+Checks: '-*,modernize-*,readability-*,bugprone-*,clang-diagnostic-redefinition'
+WarningsAsErrors: ''
+HeaderFilterRegex: '.*true-singularity-core\.cpp'
