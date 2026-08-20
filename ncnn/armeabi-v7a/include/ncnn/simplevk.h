@@ -78,10 +78,14 @@ typedef unsigned __int64 uint64_t;
 } // extern "C"
 #endif // __cplusplus
 
+#ifndef VK_MAKE_VERSION
 #define VK_MAKE_VERSION(major, minor, patch) (((major) << 22) | ((minor) << 12) | (patch))
+#endif
 
 // Vulkan 1.0 version number
+#ifndef VK_API_VERSION_1_0
 #define VK_API_VERSION_1_0 VK_MAKE_VERSION(1, 0, 0) // Patch version should always be set to 0
+#endif
 
 #define VK_VERSION_MAJOR(version) ((uint32_t)(version) >> 22)
 #define VK_VERSION_MINOR(version) (((uint32_t)(version) >> 12) & 0x3ff)
