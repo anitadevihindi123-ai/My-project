@@ -14,7 +14,7 @@
 #include <unistd.h>
 #include <dlfcn.h>
 // NOLINTBEGIN(clang-diagnostic-redefinition)
-#define SIMPLEVK_H
+#include <ncnn/vulkan_header_fix.h>
 #include <ncnn/net.h>
 // NOLINTEND(clang-diagnostic-redefinition)
 
