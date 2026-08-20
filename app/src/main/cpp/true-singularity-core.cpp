@@ -13,7 +13,10 @@
 #include <sys/mman.h>
 #include <unistd.h>
 #include <dlfcn.h>
+// NOLINTBEGIN(clang-diagnostic-redefinition)
 #include <ncnn/net.h>
+// NOLINTEND(clang-diagnostic-redefinition)
+
 
 #define MAX_FRAMES_IN_FLIGHT 2
 
