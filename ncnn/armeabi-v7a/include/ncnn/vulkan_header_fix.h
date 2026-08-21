@@ -3,6 +3,22 @@
 
 #ifndef NCNN_VULKAN_HEADER_FIX_H
 #define NCNN_VULKAN_HEADER_FIX_H
+#ifndef NCNN_VULKAN_HEADER_FIX_H
+#define NCNN_VULKAN_HEADER_FIX_H
+
+// Yahan NDK ke headers check karne ke liye guard lagayein:
+#if defined(VULKAN_CORE_H_) || defined(VK_VERSION_1_0)
+// Agar NDK ke headers pehle se hain, toh yeh pura fix block skip ho jayega aur redefinition nahi hogi
+#else
+
+// --- YAHAN SE AAPKA PURANA CODE SHURU HOGA ---
+// #include "platform.h"
+
+// This header contains new structure and function declaration to fix build with old vulkan sdk
+
+#ifndef VK_KHR_maintenance1
+#define VK_KHR_maintenance1 1
+// (Aage ka baaki saara purana code yhi rahega...)
 
 // #include "platform.h"
 
@@ -1698,4 +1714,6 @@ typedef struct VkPhysicalDeviceExternalMemoryHostPropertiesEXT
 typedef VkResult(VKAPI_PTR* PFN_vkGetMemoryHostPointerPropertiesEXT)(VkDevice device, VkExternalMemoryHandleTypeFlagBits handleType, const void* pHostPointer, VkMemoryHostPointerPropertiesEXT* pMemoryHostPointerProperties);
 #endif // VK_EXT_external_memory_host
 
+#endif // NCNN_VULKAN_HEADER_FIX_H
+#endif // VULKAN_CORE_H_ check wala else yahan khatam hoga
 #endif // NCNN_VULKAN_HEADER_FIX_H
