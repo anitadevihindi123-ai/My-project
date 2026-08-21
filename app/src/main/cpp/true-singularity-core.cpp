@@ -13,13 +13,7 @@
 #include <sys/mman.h>
 #include <unistd.h>
 #include <dlfcn.h>
-// NOLINTBEGIN(clang-diagnostic-redefinition)
-#define NCNN_VULKAN 1
-#define SIMPLEVK_H
-#define SIMPLEVK_H_
-#include <ncnn/vulkan_header_fix.h>
 #include <ncnn/net.h>
-// NOLINTEND(clang-diagnostic-redefinition)
 
 
 
