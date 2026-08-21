@@ -645,8 +645,8 @@ Java_com_my_newproject_truesingularityclass_nativeProcessAiEnhancement(JNIEnv *e
     if (AndroidBitmap_lockPixels(env, targetBitmap, &pixels) < 0 || !pixels) return;
 
     // NCNN Mat में कन्वर्ट करना
-    ncnn::Mat inMat = ncnn::Mat::from_android_bitmap_resize(pixels, info.width, info.height, ncnn::Mat::PIXEL_RGBA2RGB);
-    ncnn::Mat outMat;
+    ncnn::Mat inMat = ncnn::Mat::from_android_bitmap_resize(env, targetBitmap, ncnn::Mat::PIXEL_RGBA2RGB, info.width, info.height);
+
 
     // अगर NCNN मॉडल लोड हैं तो RealESRGAN / CodeFormer से सुपर-रेजोल्यूशन चलाना
     if (g_finalEngine->aiModelsLoaded) {
