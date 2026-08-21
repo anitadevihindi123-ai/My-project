@@ -146,6 +146,7 @@ VK_DEFINE_NON_DISPATCHABLE_HANDLE(VkShaderModule)
 #define VK_MAX_EXTENSION_NAME_SIZE       256U
 #define VK_MAX_DESCRIPTION_SIZE          256U
 
+#ifndef VULKAN_CORE_H_
 typedef enum VkPipelineCacheHeaderVersion
 {
     VK_PIPELINE_CACHE_HEADER_VERSION_ONE = 1,
@@ -527,7 +528,7 @@ typedef enum VkPhysicalDeviceType
     VK_PHYSICAL_DEVICE_TYPE_MAX_ENUM = 0x7FFFFFFF
 } VkPhysicalDeviceType;
 
-/*typedef enum VkQueryType
+typedef enum VkQueryType
 {
     VK_QUERY_TYPE_OCCLUSION = 0,
     VK_QUERY_TYPE_PIPELINE_STATISTICS = 1,
@@ -1088,7 +1089,7 @@ typedef enum VkQueryControlFlagBits
     VK_QUERY_CONTROL_PRECISE_BIT = 0x00000001,
     VK_QUERY_CONTROL_FLAG_BITS_MAX_ENUM = 0x7FFFFFFF
 } VkQueryControlFlagBits;
-typedef VkFlags VkQueryControlFlags;*/
+typedef VkFlags VkQueryControlFlags;
 
 typedef enum VkCommandBufferResetFlagBits
 {
@@ -2169,6 +2170,7 @@ typedef struct VkAndroidSurfaceCreateInfoKHR
 typedef VkResult(VKAPI_PTR* PFN_vkCreateAndroidSurfaceKHR)(VkInstance instance, const VkAndroidSurfaceCreateInfoKHR* pCreateInfo, const VkAllocationCallbacks* pAllocator, VkSurfaceKHR* pSurface);
 #endif // VK_KHR_android_surface
 
+#endif
 namespace ncnn {
 
 // vulkan loader entrypoint
