@@ -4,7 +4,7 @@ plugins {
 
 android {
     compileSdk 34
-    ndkVersion "23.7.10688636"
+    ndkVersion "26.1.10909125"
     useLibrary 'org.apache.http.legacy'
     
     signingConfigs {
