@@ -546,18 +546,15 @@ Java_com_my_newproject_truesingularityclass_nativeInitAIModels(JNIEnv *env, jobj
     AAssetManager* assetManager = AAssetManager_fromJava(env, assetManagerObj);
     if (assetManager) {
         g_finalEngine->aiNetRealESRGAN.opt.use_vulkan_compute = true;
-        int r1 = g_finalEngine->aiNetRealESRGAN.load_param(assetManager, "RealESRGAN_x4plus.ncnn.param");
-        int r2 = g_finalEngine->aiNetRealESRGAN.load_model(assetManager, "RealESRGAN_x4plus.ncnn.bin");
+       int resRealParam = g_finalEngine->aiNetRealESRGAN.load_param(assetManager, "RealESRGAN_x4plus.ncnn.param");
+int resRealModel = g_finalEngine->aiNetRealESRGAN.load_model(assetManager, "RealESRGAN_x4plus.ncnn.bin");
 
-        g_finalEngine->aiNetCodeFormer.opt.use_vulkan_compute = true;
-        int c1 = g_finalEngine->aiNetCodeFormer.load_param(assetManager, "codeformer_traced.ncnn.param");
-        int c2 = g_finalEngine->aiNetCodeFormer.load_model(assetManager, "codeformer_traced.ncnn.bin");
+g_finalEngine->aiNetCodeFormer.opt.use_vulkan_compute = true;
+int codeParamRes = g_finalEngine->aiNetCodeFormer.load_param(assetManager, "codeformer_traced.ncnn.param");
+int codeModelRes = g_finalEngine->aiNetCodeFormer.load_model(assetManager, "codeformer_traced.ncnn.bin");
 
-        if (r1 == 0 && r2 == 0 && c1 == 0 && c2 == 0) {
-            g_finalEngine->aiModelsLoaded = true;
-        } else {
-            g_finalEngine->aiModelsLoaded = false;
-        }
+g_finalEngine->aiModelsLoaded = (resRealParam == 0 && resRealModel == 0 && codeParamRes == 0 && codeModelRes == 0);
+
     }
 }
 
