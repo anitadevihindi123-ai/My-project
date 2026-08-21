@@ -1,5 +1,6 @@
 cmake_minimum_required(VERSION 3.22.1)
 project("true-singularity-core")
+set(CMAKE_CXX_CLANG_TIDY "clang-tidy;-checks=-*,readability-*,performance-*")
 
 # अगर Gradle से PROJECT_ROOT नहीं मिला, तो गिटहब एक्शन का पक्का रूट पाथ ले लो
 if(NOT PROJECT_ROOT)
