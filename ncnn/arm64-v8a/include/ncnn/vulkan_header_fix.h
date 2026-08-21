@@ -3,30 +3,23 @@
 
 #ifndef NCNN_VULKAN_HEADER_FIX_H
 #define NCNN_VULKAN_HEADER_FIX_H
-#ifndef NCNN_VULKAN_HEADER_FIX_H
-#define NCNN_VULKAN_HEADER_FIX_H
 
-// Yahan NDK ke headers check karne ke liye guard lagayein:
-#if defined(VULKAN_CORE_H_) || defined(VK_VERSION_1_0)
-// Agar NDK ke headers pehle se hain, toh yeh pura fix block skip ho jayega aur redefinition nahi hogi
-#else
+// NDK r26 KHR to NV Mapping for missing types
+#if defined(VK_VERSION_1_0)
+typedef VkPhysicalDeviceCooperativeMatrixFeaturesNV VkPhysicalDeviceCooperativeMatrixFeaturesKHR;
+typedef VkPhysicalDeviceCooperativeMatrixPropertiesNV VkPhysicalDeviceCooperativeMatrixPropertiesKHR;
+typedef VkCooperativeMatrixPropertiesNV VkCooperativeMatrixPropertiesKHR;
 
-// --- YAHAN SE AAPKA PURANA CODE SHURU HOGA ---
-// #include "platform.h"
+#ifndef PFN_vkGetPhysicalDeviceCooperativeMatrixPropertiesKHR
+typedef PFN_vkGetPhysicalDeviceCooperativeMatrixPropertiesNV PFN_vkGetPhysicalDeviceCooperativeMatrixPropertiesKHR;
+#endif
+#endif
 
 // This header contains new structure and function declaration to fix build with old vulkan sdk
 
 #ifndef VK_KHR_maintenance1
 #define VK_KHR_maintenance1 1
-// (Aage ka baaki saara purana code yhi rahega...)
-
-// #include "platform.h"
-
-// This header contains new structure and function declearation to fix build with old vulkan sdk
-
-#ifndef VK_KHR_maintenance1
-#define VK_KHR_maintenance1 1
-typedef VkFlags VkCommandPoolTrimFlags;
+typedef Flags VkCommandPoolTrimFlags;
 typedef VkCommandPoolTrimFlags VkCommandPoolTrimFlagsKHR;
 typedef void(VKAPI_PTR* PFN_vkTrimCommandPool)(VkDevice device, VkCommandPool commandPool, VkCommandPoolTrimFlags flags);
 typedef PFN_vkTrimCommandPool PFN_vkTrimCommandPoolKHR;
