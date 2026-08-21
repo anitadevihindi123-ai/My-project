@@ -527,7 +527,7 @@ typedef enum VkPhysicalDeviceType
     VK_PHYSICAL_DEVICE_TYPE_MAX_ENUM = 0x7FFFFFFF
 } VkPhysicalDeviceType;
 
-*/typedef enum VkQueryType
+/*typedef enum VkQueryType
 {
     VK_QUERY_TYPE_OCCLUSION = 0,
     VK_QUERY_TYPE_PIPELINE_STATISTICS = 1,
