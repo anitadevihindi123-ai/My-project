@@ -625,7 +625,7 @@ typedef enum VkCompareOp
     VK_COMPARE_OP_GREATER_OR_EQUAL = 6,
     VK_COMPARE_OP_ALWAYS = 7,
     VK_COMPARE_OP_MAX_ENUM = 0x7FFFFFFF
-} VkCompareOp;*/
+} VkCompareOp;
 
 typedef enum VkLogicOp
 {
@@ -1099,7 +1099,7 @@ typedef enum VkCommandBufferResetFlagBits
 {
     VK_COMMAND_BUFFER_RESET_RELEASE_RESOURCES_BIT = 0x00000001,
     VK_COMMAND_BUFFER_RESET_FLAG_BITS_MAX_ENUM = 0x7FFFFFFF
-} VkCommandBufferResetFlagBits;
+} VkCommandBufferResetFlagBits;*/
 typedef VkFlags VkCommandBufferResetFlags;
 
 typedef struct VkApplicationInfo
