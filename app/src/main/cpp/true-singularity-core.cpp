@@ -1,4 +1,5 @@
 #define __ANDROID_API__ 26
+#include <android/api-level.h>
 #include <jni.h>
 #include <string>
 #include <atomic>
