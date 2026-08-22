@@ -637,7 +637,9 @@ Java_com_my_newproject_truesingularityclass_nativeExecuteMultiFrameRawStacking(J
 }
 extern "C" JNIEXPORT void JNICALL
 Java_com_my_newproject_truesingularityclass_nativeProcessAiEnhancement(JNIEnv *env, jclass clazz, jobject targetBitmap, jstring outputPath) {
-    if (!targetBitmap || !outputPath || !g_finalEngine) return;
+        if (targetBitmap == nullptr || outputPath == nullptr || g_finalEngine == nullptr) {
+        return;
+    }
 
     const char* outPathStr = env->GetStringUTFChars(outputPath,nullptr);
     std::string finalSavePath(outPathStr);
@@ -645,8 +647,13 @@ Java_com_my_newproject_truesingularityclass_nativeProcessAiEnhancement(JNIEnv *e
 
     AndroidBitmapInfo info;
     void* pixels = nullptr;
-    if (AndroidBitmap_getInfo(env, targetBitmap, &info) < 0) return;
-    if (AndroidBitmap_lockPixels(env, targetBitmap, &pixels) < 0 || !pixels) return;
+        if (AndroidBitmap_getInfo(env, targetBitmap, &info) < 0) {
+        return;
+    }
+
+        if (AndroidBitmap_lockPixels(env, targetBitmap, &pixels) < 0 || pixels == nullptr) {
+        return;
+    }
 
         // NCNN Mat में कन्वर्ट करना
     ncnn::Mat inMat = ncnn::Mat::from_android_bitmap_resize(env, targetBitmap, ncnn::Mat::PIXEL_RGBA2RGB, info.width, info.height);
