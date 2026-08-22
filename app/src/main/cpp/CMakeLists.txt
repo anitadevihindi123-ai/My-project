@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.22.1)
 project("true-singularity-core")
-
+set(CMAKE_SYSTEM_VERSION 26)
 # अगर Gradle से PROJECT_ROOT नहीं मिला, तो गिटहब एक्शन का पक्का रूट पाथ ले लो
 if(NOT PROJECT_ROOT)
     set(PROJECT_ROOT "/home/runner/work/My-project/My-project")
