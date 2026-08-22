@@ -641,21 +641,22 @@ Java_com_my_newproject_truesingularityclass_nativeProcessAiEnhancement(JNIEnv *e
     if (AndroidBitmap_getInfo(env, targetBitmap, &info) < 0) return;
     if (AndroidBitmap_lockPixels(env, targetBitmap, &pixels) < 0 || !pixels) return;
 
-    // NCNN Mat में कन्वर्ट करना
+        // NCNN Mat में कन्वर्ट करना
     ncnn::Mat inMat = ncnn::Mat::from_android_bitmap_resize(env, targetBitmap, ncnn::Mat::PIXEL_RGBA2RGB, info.width, info.height);
+    ncnn::Mat outMat;
 
 
     // अगर NCNN मॉडल लोड हैं तो RealESRGAN / CodeFormer से सुपर-रेजोल्यूशन चलाना
     if (g_finalEngine->aiModelsLoaded) {
         ncnn::Extractor ex = g_finalEngine->aiNetRealESRGAN.create_extractor();
         ex.input("in0", inMat);
-        ex.output("out0", outMat);
+        ex.extract("out0", outMat);
     } else {
         outMat = inMat; // मॉडल न मिलने पर सेफ फॉलबैक
     }
 
     // प्रोसेस्ड इमेज को डिस्क पर सेव करना
-    ncnn::to_android_bitmap(outMat, targetBitmap, ncnn::Mat::PIXEL_RGB2RGBA);
+    outMat.to_android_bitmap(env, targetBitmap, ncnn::Mat::PIXEL_RGB2RGBA);
 
     // फाइल के रूप में डिस्क पर राइट करना
     FILE* fp = fopen(finalSavePath.c_str(), "wb");
