@@ -4,8 +4,17 @@
 #ifndef NCNN_VULKAN_HEADER_FIX_H
 #define NCNN_VULKAN_HEADER_FIX_H
 
-// NDK r26 poori tarah modern hai, isliye yeh file ab neutral rakhi gayi hai 
-// taaki NDK ke sath koi clash ya redefinition na ho.
 #include <vulkan/vulkan_core.h>
+
+// NDK r26 compatibility mapping for NCNN GPU features
+#if defined(VK_VERSION_1_0)
+typedef VkPhysicalDeviceCooperativeMatrixFeaturesNV VkPhysicalDeviceCooperativeMatrixFeaturesKHR;
+typedef VkPhysicalDeviceCooperativeMatrixPropertiesNV VkPhysicalDeviceCooperativeMatrixPropertiesKHR;
+typedef VkCooperativeMatrixPropertiesNV VkCooperativeMatrixPropertiesKHR;
+
+#ifndef PFN_vkGetPhysicalDeviceCooperativeMatrixPropertiesKHR
+typedef PFN_vkGetPhysicalDeviceCooperativeMatrixPropertiesNV PFN_vkGetPhysicalDeviceCooperativeMatrixPropertiesKHR;
+#endif
+#endif
 
 #endif // NCNN_VULKAN_HEADER_FIX_H
