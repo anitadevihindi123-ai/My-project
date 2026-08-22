@@ -328,14 +328,17 @@ Java_com_my_newproject_truesingularityclass_nativeExecuteZeroCopyPipeline(
     FinalFrameContext& frame = g_finalEngine->frames[curFrameIdx];
     g_finalEngine->currentFrameIndex = (curFrameIdx + 1) % MAX_FRAMES_IN_FLIGHT;
 
-    if (frame.timelineTargetValue > 0) {
-        VkTimelineSemaphoreWaitInfo waitInfo = {};
-        waitInfo.sType = VK_STRUCTURE_TYPE_TIMELINE_SEMAPHORE_WAIT_INFO;
+        if (frame.timelineTargetValue > 0) {
+        VkSemaphoreWaitInfo waitInfo = {};
+        waitInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_WAIT_INFO;
+        waitInfo.pNext = nullptr;
+        waitInfo.flags = 0;
         waitInfo.semaphoreCount = 1;
         waitInfo.pSemaphores = &g_finalEngine->timelineSemaphore;
         waitInfo.pValues = &frame.timelineTargetValue;
         vkWaitSemaphores(g_finalEngine->device, &waitInfo, UINT64_MAX);
     }
+
 
     FinalCachedImage cachedImg;
     bool needsAllocation = false;
