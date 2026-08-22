@@ -6,6 +6,7 @@
 #include <mutex>
 #include <cstdio>
 #include <vulkan/vulkan.h>
+#include <vulkan/vulkan_android.h>
 #include <android/hardware_buffer.h>
 #include <android/hardware_buffer_jni.h>
 #include <android/asset_manager.h>
