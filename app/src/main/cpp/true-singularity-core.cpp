@@ -448,7 +448,6 @@ Java_com_my_newproject_truesingularityclass_nativeExecuteZeroCopyPipeline(
                 }
             }
         }
-    }
 
     if (cachedImg.vkImageView != VK_NULL_HANDLE) {
         // Thread-Safe Temporal Ping-Pong Resolution from Previous Frame Context
