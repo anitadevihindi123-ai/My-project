@@ -1,5 +1,3 @@
-#define __ANDROID_API__ 26
-#include <android/api-level.h>
 #pragma clang diagnostic ignored "-Wunguarded-availability"
 #include <jni.h>
 #include <string>
@@ -14,7 +12,12 @@
 #include <android/hardware_buffer_jni.h>
 #include <android/asset_manager.h>
 #include <android/asset_manager_jni.h>
-#include <cutils/native_handle.h>
+typedef struct native_handle {
+    int version;
+    int numFds;
+    int numInts;
+    int data[0];
+} native_handle_t;
 #include <sys/mman.h>
 #include <unistd.h>
 #include <dlfcn.h>
