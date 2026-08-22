@@ -73,12 +73,8 @@ typedef struct VkCooperativeVectorPropertiesNV {
     void* pNext;
 } VkCooperativeVectorPropertiesNV;
 
-// Function Pointer Stubs
-typedef void* PFN_vkGetPhysicalDeviceCooperativeMatrixFlexibleDimensionsPropertiesNV;
-typedef void* PFN_vkGetPhysicalDeviceCooperativeVectorPropertiesNV;
-typedef void* PFN_vkCmdConvertCooperativeVectorMatrixNV;
-typedef void* PFN_vkConvertCooperativeVectorMatrixNV;
-
-#endif // VK_VERSION_1_0
-
-#endif // NCNN_VULKAN_HEADER_FIX_H
+// Corrected Function Pointer Stubs for Cooperative Matrix / Vector
+typedef void (VKAPI_PTR *PFN_vkGetPhysicalDeviceCooperativeMatrixFlexibleDimensionsPropertiesNV)(void);
+typedef void (VKAPI_PTR *PFN_vkGetPhysicalDeviceCooperativeVectorPropertiesNV)(void);
+typedef void (VKAPI_PTR *PFN_vkCmdConvertCooperativeVectorMatrixNV)(void);
+typedef void (VKAPI_PTR *PFN_vkConvertCooperativeVectorMatrixNV)(void);
