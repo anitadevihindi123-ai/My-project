@@ -662,9 +662,9 @@ Java_com_my_newproject_truesingularityclass_nativeProcessAiEnhancement(JNIEnv *e
 
     // अगर NCNN मॉडल लोड हैं तो RealESRGAN / CodeFormer से सुपर-रेजोल्यूशन चलाना
     if (g_finalEngine->aiModelsLoaded) {
-        ncnn::Extractor ex = g_finalEngine->aiNetRealESRGAN.create_extractor();
-        ex.input("in0", inMat);
-        ex.extract("out0", outMat);
+        ncnn::Extractor extractorObj = g_finalEngine->aiNetRealESRGAN.create_extractorobj();
+        extractorObj.input("in0", inMat);
+        extractorObj.extract("out0", outMat);
     } else {
         outMat = inMat; // मॉडल न मिलने पर सेफ फॉलबैक
     }
