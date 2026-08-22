@@ -673,12 +673,12 @@ Java_com_my_newproject_truesingularityclass_nativeProcessAiEnhancement(JNIEnv *e
     outMat.to_android_bitmap(env, targetBitmap, ncnn::Mat::PIXEL_RGB2RGBA);
 
     // फाइल के रूप में डिस्क पर राइट करना
-    FILE* fp = fopen(finalSavePath.c_str(), "wb");
-    if (fp) {
+    FILE* filePointer = fopen(finalSavePath.c_str(), "wb");
+    if (filePointer != nullptr) {
         // कंप्रेस करके जेपीजी के रूप में सेव करना
         AndroidBitmap_unlockPixels(env, targetBitmap);
         // ... (standard save logic)
-        fclose(fp);
+        fclose(filePointer);
     } else {
         AndroidBitmap_unlockPixels(env, targetBitmap);
     }
