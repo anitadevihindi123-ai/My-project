@@ -18,6 +18,9 @@ typedef struct native_handle {
     int numInts;
     int data[0];
 } native_handle_t;
+extern "C" {
+    const native_handle_t* AHardwareBuffer_getNativeHandle(const AHardwareBuffer* buffer);
+}
 #include <sys/mman.h>
 #include <unistd.h>
 #include <dlfcn.h>
