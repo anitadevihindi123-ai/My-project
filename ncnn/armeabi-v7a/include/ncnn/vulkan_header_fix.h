@@ -6,10 +6,9 @@
 
 #include <vulkan/vulkan_core.h>
 
-// --- NCNN to NDK r26 Full Compatibility & Stub Mappings ---
 #if defined(VK_VERSION_1_0)
 
-// 1. Cooperative Matrix & Vector Mappings
+// 1. Cooperative Matrix & Vector Type Aliases
 typedef VkPhysicalDeviceCooperativeMatrixFeaturesNV VkPhysicalDeviceCooperativeMatrixFeaturesKHR;
 typedef VkPhysicalDeviceCooperativeMatrixPropertiesNV VkPhysicalDeviceCooperativeMatrixPropertiesKHR;
 typedef VkCooperativeMatrixPropertiesNV VkCooperativeMatrixPropertiesKHR;
@@ -20,15 +19,15 @@ typedef VkScopeNV VkScopeKHR;
 typedef PFN_vkGetPhysicalDeviceCooperativeMatrixPropertiesNV PFN_vkGetPhysicalDeviceCooperativeMatrixPropertiesKHR;
 #endif
 
-// 2. Robustness2 Mappings
+// 2. Robustness2 Aliases
 typedef VkPhysicalDeviceRobustness2FeaturesEXT VkPhysicalDeviceRobustness2FeaturesKHR;
 typedef VkPhysicalDeviceRobustness2PropertiesEXT VkPhysicalDeviceRobustness2PropertiesKHR;
 
-// 3. Shader Feature Mappings
+// 3. Shader Feature Aliases
 typedef VkPhysicalDeviceShaderFloat16Int8Features VkPhysicalDeviceShaderFloatControls2FeaturesKHR;
 typedef VkPhysicalDeviceShaderSubgroupExtendedTypesFeatures VkPhysicalDeviceShaderSubgroupRotateFeaturesKHR;
 
-// 4. Missing Stubs for Cooperative Matrix 2 & Vector (NDK r26 Fallbacks)
+// 4. Missing Struct Fallbacks for NDK r26
 typedef struct VkPhysicalDeviceCooperativeMatrix2FeaturesNV {
     VkStructureType sType;
     void* pNext;
@@ -73,8 +72,23 @@ typedef struct VkCooperativeVectorPropertiesNV {
     void* pNext;
 } VkCooperativeVectorPropertiesNV;
 
-// Corrected Function Pointer Stubs for Cooperative Matrix / Vector
-typedef void (VKAPI_PTR *PFN_vkGetPhysicalDeviceCooperativeMatrixFlexibleDimensionsPropertiesNV)(void);
-typedef void (VKAPI_PTR *PFN_vkGetPhysicalDeviceCooperativeVectorPropertiesNV)(void);
-typedef void (VKAPI_PTR *PFN_vkCmdConvertCooperativeVectorMatrixNV)(void);
-typedef void (VKAPI_PTR *PFN_vkConvertCooperativeVectorMatrixNV)(void);
+// 5. Correct Function Pointer Definitions (Avoiding type mismatches)
+#ifndef PFN_vkGetPhysicalDeviceCooperativeMatrixFlexibleDimensionsPropertiesNV
+typedef VkResult (VKAPI_PTR *PFN_vkGetPhysicalDeviceCooperativeMatrixFlexibleDimensionsPropertiesNV)(VkPhysicalDevice physicalDevice, uint32_t* pPropertyCount, VkCooperativeMatrixFlexibleDimensionsPropertiesNV* pProperties);
+#endif
+
+#ifndef PFN_vkGetPhysicalDeviceCooperativeVectorPropertiesNV
+typedef VkResult (VKAPI_PTR *PFN_vkGetPhysicalDeviceCooperativeVectorPropertiesNV)(VkPhysicalDevice physicalDevice, uint32_t* pPropertyCount, VkCooperativeVectorPropertiesNV* pProperties);
+#endif
+
+#ifndef PFN_vkCmdConvertCooperativeVectorMatrixNV
+typedef void (VKAPI_PTR *PFN_vkCmdConvertCooperativeVectorMatrixNV)(VkCommandBuffer commandBuffer);
+#endif
+
+#ifndef PFN_vkConvertCooperativeVectorMatrixNV
+typedef VkResult (VKAPI_PTR *PFN_vkConvertCooperativeVectorMatrixNV)(VkDevice device);
+#endif
+
+#endif // VK_VERSION_1_0
+
+#endif // NCNN_VULKAN_HEADER_FIX_H
