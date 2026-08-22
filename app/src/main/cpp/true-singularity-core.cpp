@@ -14,6 +14,7 @@
 #include <android/hardware_buffer_jni.h>
 #include <android/asset_manager.h>
 #include <android/asset_manager_jni.h>
+#include <cutils/native_handle.h>
 #include <sys/mman.h>
 #include <unistd.h>
 #include <dlfcn.h>
