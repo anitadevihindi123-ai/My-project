@@ -1,5 +1,6 @@
 #define __ANDROID_API__ 26
 #include <android/api-level.h>
+#pragma clang diagnostic ignored "-Wunguarded-availability"
 #include <jni.h>
 #include <string>
 #include <atomic>
