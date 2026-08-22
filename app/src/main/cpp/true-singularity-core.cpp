@@ -353,14 +353,17 @@ Java_com_my_newproject_truesingularityclass_nativeExecuteZeroCopyPipeline(
         }
     }
 
-    if (needsAllocation) {
-        AHardwareBuffer_acquire(hb);
         FinalCachedImage newImg = {};
+#if __ANDROID_API__ >= 26
+    AHardwareBuffer_acquire(hb);
+    const native_handle_t* nativeHandle = AHardwareBuffer_getNativeHandle(hb);
+    if (nativeHandle && nativeHandle->numFds > 0) {
+        newImg.kernelDmaBufFd = nativeHandle->data[0];
+    }
+#else
+    // Purane devices ke liye safe fallback agar zaroorat ho
+#endif
 
-        const native_handle_t* nativeHandle = AHardwareBuffer_getNativeHandle(hb);
-        if (nativeHandle && nativeHandle->numFds > 0) {
-            newImg.kernelDmaBufFd = nativeHandle->data[0];
-        }
 
         VkExternalMemoryImageCreateInfo extInfo = {};
         extInfo.sType = VK_STRUCTURE_TYPE_EXTERNAL_MEMORY_IMAGE_CREATE_INFO;
