@@ -3,7 +3,7 @@ plugins {
 }
 
 android {
-        splits {
+    splits {
         abi {
             enable true
             reset()
@@ -24,7 +24,8 @@ android {
             keyPassword '00000000'
         }
     }
-        defaultConfig {
+
+    defaultConfig {
         applicationId "com.my.newproject"
         namespace "com.my.newproject"
         minSdk 23
@@ -62,9 +63,7 @@ android {
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
             signingConfig signingConfigs.release
         }
-            
-        }
-    { debug 
+        debug {
             minifyEnabled false
         }
     }
@@ -79,7 +78,7 @@ android {
             version "3.22.1"
         }
     }
-
+}
 
 dependencies {
     implementation fileTree(dir: 'libs', include: ['*.jar'])
