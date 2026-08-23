@@ -47,3 +47,4 @@ target_link_libraries(
     ${android-lib}
     ${log-lib}
 )
+set_target_properties(true-singularity-core PROPERTIES LINK_FLAGS "-Wl,--strip-all")
