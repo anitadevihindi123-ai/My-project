@@ -79,7 +79,7 @@ android {
             version "3.22.1"
         }
     }
-}
+
 
 dependencies {
     implementation fileTree(dir: 'libs', include: ['*.jar'])
