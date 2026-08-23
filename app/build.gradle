@@ -94,12 +94,24 @@ tasks.register('mergeCodeFormerParts') {
         def assetsDir = file("src/main/assets")
         def outputFile = new File(assetsDir, "codeformer_traced.ncnn.bin")
         
-        outputFile.withOutputStream { out ->
-            ["codeformer_part_aa", "codeformer_part_ab", "codeformer_part_ac", "codeformer_part_ad"].forEach { partName ->
-                def partFile = new File(assetsDir, partName)
-                if (partFile.exists()) {
-                    out.write(partFile.bytes)
+        // अगर बड़ी फाइल पहले से नहीं है, तभी टुकड़ों को जोड़कर बनाओ
+        if (!outputFile.exists()) {
+            outputFile.withOutputStream { out ->
+                ["codeformer_part_aa", "codeformer_part_ab", "codeformer_part_ac", "codeformer_part_ad"].forEach { partName ->
+                    def partFile = new File(assetsDir, partName)
+                    if (partFile.exists()) {
+                        out.write(partFile.bytes)
+                    }
                 }
+            }
+        }
+        
+        // महा-सफाई: जोड़ने के तुरंत बाद चारों टुकड़ों को डिलीट कर दो ताकि APK में न जाएं!
+        ["codeformer_part_aa", "codeformer_part_ab", "codeformer_part_ac", "codeformer_part_ad"].forEach { partName ->
+            def partFile = new File(assetsDir, partName)
+            if (partFile.exists()) {
+                partFile.delete()
+                println "Successfully deleted temporary part file: ${partName}"
             }
         }
     }
