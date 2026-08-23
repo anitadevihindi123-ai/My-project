@@ -1,4 +1,4 @@
-Name: Build Android APK Manually
+name: Build Android APK Manually
 
 on: [push]
 
