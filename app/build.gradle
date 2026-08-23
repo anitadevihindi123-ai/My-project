@@ -3,6 +3,15 @@ plugins {
 }
 
 android {
+        splits {
+        abi {
+            enable true
+            reset()
+            include "arm64-v8a", "armeabi-v7a"
+            universalApk false
+        }
+    }
+
     compileSdk 34
     ndkVersion "26.1.10909125"
     useLibrary 'org.apache.http.legacy'
@@ -48,8 +57,12 @@ android {
     
     buildTypes {
         release {
-            minifyEnabled false
+            minifyEnabled true
+            shrinkResources true
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
             signingConfig signingConfigs.release
+        }
+            
         }
         debug {
             minifyEnabled false
