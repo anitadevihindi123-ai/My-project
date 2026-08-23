@@ -36,15 +36,15 @@ jobs:
         run: ./gradlew lintDebug
         env:
           ANDROID_HOME: ${{ steps.setup-android.outputs.android-home }}
-     
+
       - name: Run Build
-        run: ./gradlew assembleDebug --quiet
+        run: ./gradlew assembleRelease --quiet
         env:
           ANDROID_HOME: ${{ steps.setup-android.outputs.android-home }}
 
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: app-debug-apk
-          path: app/build/outputs/apk/debug/app-debug.apk
-
+          name: app-release-apk
+          path: |
+            app/build/outputs/apk/**/*.apk
