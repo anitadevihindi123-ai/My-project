@@ -21,7 +21,7 @@ layout(push_constant, std430) uniform FinalConstants {
     mat4 viewMatrix;
 } pc;
 
-// Shared Memory Tile Caching (18x18 L1 On-Chip Buffer)
+// Shared Memory Tile Caching (18x18 L1 On-Chip Buffer - Hardware Safe)
 shared vec3 sharedTile[18][18];
 
 // JzAzBz Perceptual Color Space Conversion Helpers
@@ -47,7 +47,7 @@ void main() {
     // --- 1. THERMAL-LOAD DYNAMIC SHIELD ---
     float thermalShieldFactor = clamp(1.0f - max(0.0f, pc.thermalLoad - 0.5f) * 1.25f, 0.5f, 1.0f);
 
-    // --- BULLETPROOF DEADLOCK FIX ---
+    // --- BULLETPROOF BOUNDARY CLAMPING ---
     ivec2 safeCoord = clamp(pixelCoord, ivec2(0), sz - 1);
 
     // Gyro Stabilization & Safe Coordinate Shift
@@ -83,12 +83,13 @@ void main() {
         sharedTile[17][17] = imageLoad(inputImage, clamp(shiftedCoord + ivec2(1, 1), ivec2(0), sz - 1)).rgb;
     }
     
+    // --- VULKAN HARDWARE BARRIER (CRITICAL FOR DEADLOCK PREVENTION) ---
     barrier();
 
-    // Strict Boundary Check
+    // Strict Boundary Check (Placed AFTER barrier to prevent Workgroup Deadlock)
     if (pixelCoord.x >= sz.x || pixelCoord.y >= sz.y) return;
 
-    // Stencil Neighborhood Sampling
+    // Stencil Neighborhood Sampling from L1 Shared Tile
     vec3 left   = sharedTile[localCoord.y + 1][localCoord.x];
     vec3 right  = sharedTile[localCoord.y + 1][localCoord.x + 2];
     vec3 top    = sharedTile[localCoord.y][localCoord.x + 1];
@@ -151,13 +152,14 @@ void main() {
     float localVariance = abs(rgb.g - localMean);
     float adaptiveContrast = mix(1.0f, 1.25f, clamp(localVariance * 4.0f, 0.0f, 1.0f));
 
-    // --- 6. OPTICAL FLOW VECTOR FIELD ---
+    // --- 6. OPTICAL FLOW & ADVANCED TEMPORAL GHOST-CORRECTION ---
     vec3 dt_flow = currentPixel - h0;
     float gradSqSum = dot(dx, dx) + dot(dy, dy) + 0.001f;
     vec2 calculatedOpticalFlow = -vec2(dot(dx, dt_flow), dot(dy, dt_flow)) / gradSqSum;
     vec2 motionVector = calculatedOpticalFlow + vec2(-pc.gyroShiftX, -pc.gyroShiftY) * 0.15f;
     
-    rgb = mix(rgb, stackedHistory, clamp(length(motionVector) * 0.08f, 0.0f, 0.18f) * (1.0f - disocclusionMask));
+    float temporalMotionWeight = clamp(length(motionVector) * 0.08f, 0.0f, 0.18f) * (1.0f - disocclusionMask);
+    rgb = mix(rgb, stackedHistory, temporalMotionWeight);
 
     // Luma Weights & Subgroup Denoise
     vec3 lumaWeights = vec3(0.2126f, 0.7152f, 0.0722f);
@@ -179,6 +181,20 @@ void main() {
     // Multi-Exposure HDR+ Dual-ISO Quantum Fusion
     float dualIsoBoost = 1.0f + (pow(1.0f - luma, 3.0f) * 5.0f);
     rgb = min(vec3(1.0f), rgb * dualIsoBoost);
+
+    // --- 7. SPECULAR HIGHLIGHT RECOVERY & SOFT-CLIPPING (HDR Rolloff) ---
+    float highlightThreshold = 0.75f;
+    if (luma > highlightThreshold) {
+        float overBright = luma - highlightThreshold;
+        float softRolloff = highlightThreshold + overBright / (1.0f + overBright * 1.5f);
+        rgb *= (softRolloff / max(luma, 0.0001f));
+    }
+
+    // --- 8. LOCAL TONE MAPPING (Shadow & Highlight Dynamic Compression) ---
+    float localToneWeight = smoothstep(0.1f, 0.9f, luma);
+    vec3 shadowLift = rgb * 1.12f;
+    vec3 highlightCompress = rgb / (1.0f + rgb);
+    rgb = mix(shadowLift, highlightCompress, localToneWeight);
 
     // Laplacian Second Derivative
     vec3 laplacian = (left + right + top + bottom) - (rgb * 4.0f);
@@ -206,6 +222,11 @@ void main() {
     float microWeave = sin(float(pixelCoord.x) * 2.5f) * cos(float(pixelCoord.y) * 2.5f);
     vec3 fabricEnhanced = rgb + vec3(microWeave * 0.035f * edgeStrength);
 
+    // --- 9. ADAPTIVE CLARITY & DETAIL PRESERVATION ---
+    vec3 boxBlur = (left + right + top + bottom + tl + tr + bl + br + rgb) / 9.0f;
+    vec3 detailMask = rgb - boxBlur;
+    rgb += detailMask * 0.25f * (1.0f - edgeStrength);
+
     float edgeMask = smoothstep(0.02f, 0.25f, edgeStrength);
     vec3 guidedFiltered = mix(fabricEnhanced, hyperSharp, edgeMask);
     rgb = mix(guidedFiltered, guidedFiltered * adaptiveContrast, 0.5f);
@@ -215,9 +236,13 @@ void main() {
     perceptualColor.x *= 1.02f;
     rgb = jzAzBzToRgb(perceptualColor);
 
-    // NeRF 3D Depth Projection
+    // --- 10. NeRF 3D DEPTH PROJECTION & CINEMATIC DEPTH-AWARE BOKEH ---
     vec4 ndcPos = pc.viewMatrix * vec4(float(pixelCoord.x) / float(pc.width), float(pixelCoord.y) / float(pc.height), luma, 1.0f);
     float depthFactor = clamp(ndcPos.z * 0.1f, 0.9f, 1.1f);
+    
+    float depthBlurFactor = smoothstep(0.85f, 1.15f, depthFactor);
+    vec3 bokehBlurred = mix(rgb, boxBlur, (1.0f - depthBlurFactor) * 0.35f * clamp(pc.zoomFactor - 1.0f, 0.0f, 1.0f));
+    rgb = mix(rgb, bokehBlurred, 0.5f);
     rgb *= depthFactor;
 
     // Quantum-Phase Micro-Interferometry
@@ -237,6 +262,12 @@ void main() {
     float finalLuma = dot(rgb, lumaWeights);
     float volumetricDepthMask = 1.8f + (pc.zoomFactor * 0.25f);
     rgb = mix(vec3(finalLuma), rgb, volumetricDepthMask);
+    rgb = clamp(rgb, 0.0f, 1.0f);
+
+    // --- 11. MASTER HARMONIZATION & ADAPTIVE WEIGHT BALANCER (The Ultimate Stabilizer) ---
+    // सभी लॉजिक्स के आउटपुट को आपस में बैलेंस करके एक मक्खन जैसा स्टेबल और एचडी फिनिश देना
+    float masterBalanceWeight = clamp(1.0f - (edgeStrength * 0.15f) + (finalLuma * 0.05f), 0.85f, 1.0f);
+    rgb = mix(currentPixel, rgb, masterBalanceWeight * thermalShieldFactor);
     rgb = clamp(rgb, 0.0f, 1.0f);
 
     // Final Output Store to Hardware Buffer
