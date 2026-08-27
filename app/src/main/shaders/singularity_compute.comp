@@ -6,7 +6,7 @@ layout(local_size_x = 16, local_size_y = 16) in;
 
 layout(binding = 0, rgba8) readonly uniform image2D inputImage;
 layout(binding = 1, rgba8) writeonly uniform image2D outputImage;
-// --- 5-Frame True Circular Ring Buffer Array (असली 5-फ्रेम का इतिहास) ---
+// --- 5-Frame True Circular Ring Buffer Array ---
 layout(binding = 2, rgba8) readonly uniform image2DArray historyRingBuffer;
 
 layout(push_constant, std430) uniform FinalConstants {
@@ -21,7 +21,7 @@ layout(push_constant, std430) uniform FinalConstants {
     mat4 viewMatrix;
 } pc;
 
-// Shared Memory Tile Caching (18x18 L1 On-Chip Buffer for Zero-Overhead Sampling)
+// Shared Memory Tile Caching (18x18 L1 On-Chip Buffer)
 shared vec3 sharedTile[18][18];
 
 // JzAzBz Perceptual Color Space Conversion Helpers
@@ -44,16 +44,17 @@ void main() {
     ivec2 localCoord = ivec2(gl_LocalInvocationID.xy);
     ivec2 sz = ivec2(pc.width, pc.height);
     
+    // --- 1. THERMAL-LOAD DYNAMIC SHIELD ---
+    float thermalShieldFactor = clamp(1.0f - max(0.0f, pc.thermalLoad - 0.5f) * 1.25f, 0.5f, 1.0f);
+
     // --- BULLETPROOF DEADLOCK FIX ---
-    // कोई भी थ्रेड बैरियर से पहले return नहीं मारेगा। 
-    // हम कोऑर्डिनेट्स को सेफली क्लैंप करके लोड करेंगे ताकि हर थ्रेड बैरियर तक पहुँचे।
     ivec2 safeCoord = clamp(pixelCoord, ivec2(0), sz - 1);
 
-    // 2. Gyro Stabilization & Safe Coordinate Shift
+    // Gyro Stabilization & Safe Coordinate Shift
     ivec2 shiftedCoord = safeCoord + ivec2(round(pc.gyroShiftX), round(pc.gyroShiftY));
     shiftedCoord = clamp(shiftedCoord, ivec2(0), sz - 1);
 
-    // --- शाही शेयर्ड मेमोरी टाइल लोडिंग (एजेस और कोनों सहित 100% सेफ) ---
+    // --- शेयर्ड मेमोरी टाइल लोडिंग (एजेस और कोनों सहित 100% सेफ) ---
     sharedTile[localCoord.y + 1][localCoord.x + 1] = imageLoad(inputImage, shiftedCoord).rgb;
 
     if (localCoord.x == 0) {
@@ -69,7 +70,6 @@ void main() {
         sharedTile[17][localCoord.x + 1] = imageLoad(inputImage, clamp(shiftedCoord + ivec2(0, 1), ivec2(0), sz - 1)).rgb;
     }
 
-    // चारों कोने (Corners) लोड करना ताकि कोई एज-आर्टिफ़ैक्ट न बचे
     if (localCoord.x == 0 && localCoord.y == 0) {
         sharedTile[0][0] = imageLoad(inputImage, clamp(shiftedCoord + ivec2(-1, -1), ivec2(0), sz - 1)).rgb;
     }
@@ -83,13 +83,12 @@ void main() {
         sharedTile[17][17] = imageLoad(inputImage, clamp(shiftedCoord + ivec2(1, 1), ivec2(0), sz - 1)).rgb;
     }
     
-    // सभी 256 थ्रेड्स यहाँ एक साथ सिंक होंगे — कोई डेडलॉक नहीं!
     barrier();
 
-    // 1. Strict Boundary Check (बैरियर पार होने के बाद अब आउट-ऑफ़-बाउंड्स थ्रेड्स को बाहर करें)
+    // Strict Boundary Check
     if (pixelCoord.x >= sz.x || pixelCoord.y >= sz.y) return;
 
-    // 3. Stencil Neighborhood Sampling (शेयर्ड मेमोरी से सीधे हाई-स्पीड फेच)
+    // Stencil Neighborhood Sampling
     vec3 left   = sharedTile[localCoord.y + 1][localCoord.x];
     vec3 right  = sharedTile[localCoord.y + 1][localCoord.x + 2];
     vec3 top    = sharedTile[localCoord.y][localCoord.x + 1];
@@ -99,9 +98,23 @@ void main() {
     vec3 bl     = sharedTile[localCoord.y + 2][localCoord.x];
     vec3 br     = sharedTile[localCoord.y + 2][localCoord.x + 2];
 
-    // --- 5-Frame True Circular Ring Buffer Register-Level Accumulation Core ---
     vec3 currentPixel = sharedTile[localCoord.y + 1][localCoord.x + 1];
+
+    // --- 2. SUBGROUP-ACCELERATED AUTO-EXPOSURE ---
+    float baseLumaCheck = dot(currentPixel, vec3(0.2126f, 0.7152f, 0.0722f));
+    float subgroupMeanLuma = subgroupAdd(baseLumaCheck) / float(gl_SubgroupSize);
+    float autoExposureGain = clamp(0.5f / (subgroupMeanLuma + 0.05f), 0.75f, 1.65f);
+    currentPixel *= autoExposureGain;
+
+    // --- 3. SUBGROUP CHROMATIC MOIRÉ & FALSE-COLOR ERASER ---
+    vec3 chrominance = currentPixel - vec3(baseLumaCheck);
+    float chrominanceMagnitude = dot(chrominance, chrominance);
+    float subgroupChromaMean = subgroupAdd(chrominanceMagnitude) / float(gl_SubgroupSize);
+    if (chrominanceMagnitude > subgroupChromaMean * 2.5f) {
+        currentPixel = mix(currentPixel, vec3(baseLumaCheck), 0.65f);
+    }
     
+    // Ring Buffer History Loading
     ivec2 clampedCoord = clamp(pixelCoord, ivec2(0), sz - 1);
     vec3 h0 = imageLoad(historyRingBuffer, ivec3(clampedCoord, 0)).rgb;
     vec3 h1 = imageLoad(historyRingBuffer, ivec3(clampedCoord, 1)).rgb;
@@ -109,36 +122,44 @@ void main() {
     vec3 h3 = imageLoad(historyRingBuffer, ivec3(clampedCoord, 3)).rgb;
     vec3 h4 = imageLoad(historyRingBuffer, ivec3(clampedCoord, 4)).rgb;
 
-    // 5-Frame Weighted Historical Blend (GCam Killer Multi-Frame Math)
     vec3 stackedHistory = (h0 * 0.4f + h1 * 0.25f + h2 * 0.15f + h3 * 0.12f + h4 * 0.08f);
 
-    float currentLumaCore = dot(currentPixel, vec3(0.2126f, 0.7152f, 0.0722f));
-    float subgroupMeanLuma = subgroupAdd(currentLumaCore) / float(gl_SubgroupSize);
-    
-    float varianceDelta = abs(currentLumaCore - subgroupMeanLuma);
-    float registerConfidence = clamp(1.0f - (varianceDelta * 5.0f), 0.05f, 0.95f);
-    
-    vec3 accumulatedCore = mix(currentPixel, stackedHistory, registerConfidence * 0.85f);
-    vec3 enhancedCore = mix(currentPixel, accumulatedCore, registerConfidence);
-    
-    // Base working RGB initialized from our 5-frame ring buffer core
-    vec3 rgb = enhancedCore;
+    // --- 4. LOCAL NEIGHBORHOOD AABB HISTORY CLAMPING (Ghost-Killer) ---
+    vec3 boxMin = min(min(min(left, right), min(top, bottom)), currentPixel);
+    vec3 boxMax = max(max(max(left, right), max(top, bottom)), currentPixel);
+    stackedHistory = clamp(stackedHistory, boxMin, boxMax);
 
-    // 4. Structure Tensor & Gradient Magnitude
+    // --- 5. SUBGROUP-DRIVEN DISOCCLUSION REACTIVE MASK ---
+    vec3 diffH0 = abs(currentPixel - h0);
+    float disocclusionMetric = diffH0.r + diffH0.g + diffH0.b;
+    float disocclusionMask = smoothstep(0.04f, 0.30f, disocclusionMetric);
+
+    float currentLumaCore = dot(currentPixel, vec3(0.2126f, 0.7152f, 0.0722f));
+    float varianceDelta = abs(currentLumaCore - subgroupMeanLuma);
+    float registerConfidence = clamp(1.0f - (varianceDelta * 5.0f), 0.05f, 0.95f) * thermalShieldFactor;
+    
+    float effectiveHistoryWeight = (1.0f - disocclusionMask) * registerConfidence * 0.85f;
+    vec3 accumulatedCore = mix(currentPixel, stackedHistory, effectiveHistoryWeight);
+    vec3 rgb = mix(currentPixel, accumulatedCore, registerConfidence);
+
+    // Structure Tensor & Gradient Magnitude
     vec3 dx = (right - left) * 0.5f + (tr - tl + br - bl) * 0.25f;
     vec3 dy = (bottom - top) * 0.5f + (bl - tl + br - tr) * 0.25f;
     float edgeStrength = length(dx) + length(dy);
 
-    // Dynamic Variance-Guided Micro-Contrast
     float localMean = (left.g + right.g + top.g + bottom.g + rgb.g) * 0.2f;
     float localVariance = abs(rgb.g - localMean);
     float adaptiveContrast = mix(1.0f, 1.25f, clamp(localVariance * 4.0f, 0.0f, 1.0f));
 
-    // 5. Temporal Optical Flow & Feedback (Cleaned & Direct 5-Frame Feed)
-    vec2 motionVector = vec2(-pc.gyroShiftX, -pc.gyroShiftY);
-    rgb = mix(rgb, stackedHistory, clamp(length(motionVector) * 0.05f, 0.0f, 0.15f));
+    // --- 6. OPTICAL FLOW VECTOR FIELD ---
+    vec3 dt_flow = currentPixel - h0;
+    float gradSqSum = dot(dx, dx) + dot(dy, dy) + 0.001f;
+    vec2 calculatedOpticalFlow = -vec2(dot(dx, dt_flow), dot(dy, dt_flow)) / gradSqSum;
+    vec2 motionVector = calculatedOpticalFlow + vec2(-pc.gyroShiftX, -pc.gyroShiftY) * 0.15f;
+    
+    rgb = mix(rgb, stackedHistory, clamp(length(motionVector) * 0.08f, 0.0f, 0.18f) * (1.0f - disocclusionMask));
 
-    // 6. Luma Weights & Subgroup Denoise
+    // Luma Weights & Subgroup Denoise
     vec3 lumaWeights = vec3(0.2126f, 0.7152f, 0.0722f);
     float luma = dot(rgb, lumaWeights);
 
@@ -149,28 +170,28 @@ void main() {
         rgb = mix(vec3(luma), rgb, 0.90f);
     }
 
-    // 7. Photon Boost & Dark-Matter Recovery
+    // Photon Boost & Dark-Matter Recovery
     if (luma < 0.20f) {
         float photonBoost = 1.0f + ((0.20f - luma) * 7.5f);
         rgb = min(vec3(1.0f), rgb * photonBoost);
     }
 
-    // 8. Multi-Exposure HDR+ Dual-ISO Quantum Fusion
+    // Multi-Exposure HDR+ Dual-ISO Quantum Fusion
     float dualIsoBoost = 1.0f + (pow(1.0f - luma, 3.0f) * 5.0f);
     rgb = min(vec3(1.0f), rgb * dualIsoBoost);
 
-    // 9. Laplacian Second Derivative (Laser-Sharp Edge Cutting)
+    // Laplacian Second Derivative
     vec3 laplacian = (left + right + top + bottom) - (rgb * 4.0f);
-    vec3 hyperSharp = rgb - laplacian * 0.8f;
+    vec3 hyperSharp = rgb - laplacian * (0.8f * thermalShieldFactor);
 
-    // 10. GAN Super-Resolution Texture Hallucination
-    if (pc.zoomFactor > 1.2f) {
+    // GAN Super-Resolution Texture Hallucination
+    if (pc.zoomFactor > 1.2f && thermalShieldFactor > 0.6f) {
         float flatIndex = float(pixelCoord.y * pc.width + pixelCoord.x);
         float ganTextureGen = sin(flatIndex * 23.45f) * 0.07f * (pc.zoomFactor / 2.0f);
         rgb = clamp(rgb + vec3(ganTextureGen), 0.0f, 1.0f);
     }
 
-    // 11. Sub-Surface Scattering (SSS) Skin Radiance
+    // Sub-Surface Scattering (SSS) Skin Radiance
     bool isSkinTone = (rgb.r > 0.35f && rgb.g > 0.25f && rgb.b > 0.15f && rgb.r > rgb.g && rgb.g > rgb.b);
     vec3 skinAvg = (left + right + top + bottom) * 0.25f;
     vec3 sssGlow = mix(rgb, skinAvg * 1.15f, smoothstep(0.15f, 0.02f, edgeStrength));
@@ -181,38 +202,35 @@ void main() {
         rgb.b *= 0.93f;
     }
 
-    // 12. Fabric Weave & Micro-Texture Synthesis
+    // Fabric Weave & Micro-Texture Synthesis
     float microWeave = sin(float(pixelCoord.x) * 2.5f) * cos(float(pixelCoord.y) * 2.5f);
     vec3 fabricEnhanced = rgb + vec3(microWeave * 0.035f * edgeStrength);
 
-    // Subgroup-Accelerated Bilateral Guided Filtering
     float edgeMask = smoothstep(0.02f, 0.25f, edgeStrength);
     vec3 guidedFiltered = mix(fabricEnhanced, hyperSharp, edgeMask);
-
-    // Adaptive Material & Edge Blend with Variance Scaling
     rgb = mix(guidedFiltered, guidedFiltered * adaptiveContrast, 0.5f);
 
-    // 13. JzAzBz Perceptual Color Space Shift
+    // JzAzBz Perceptual Color Space Shift
     vec3 perceptualColor = rgbToJzAzBz(rgb);
     perceptualColor.x *= 1.02f;
     rgb = jzAzBzToRgb(perceptualColor);
 
-    // 14. NeRF 3D Depth Projection
+    // NeRF 3D Depth Projection
     vec4 ndcPos = pc.viewMatrix * vec4(float(pixelCoord.x) / float(pc.width), float(pixelCoord.y) / float(pc.height), luma, 1.0f);
     float depthFactor = clamp(ndcPos.z * 0.1f, 0.9f, 1.1f);
     rgb *= depthFactor;
 
-    // Quantum-Phase Micro-Interferometry & Sub-Pixel Diffusion
+    // Quantum-Phase Micro-Interferometry
     float quantumInterference = sin(float(pixelCoord.x) * 12.9898f + float(pixelCoord.y) * 78.233f) * 43758.5453f;
     float subPixelPhase = fract(quantumInterference) * 0.04f * (1.0f - edgeStrength);
     rgb += vec3(subPixelPhase * (1.0f - luma));
 
-    // 15. ACES Filmic Tone Mapping Curve
+    // ACES Filmic Tone Mapping Curve
     vec3 r_num = rgb * (2.51f * rgb + 0.03f);
     vec3 r_den = rgb * (2.43f * rgb + 0.59f) + 0.14f;
     rgb = clamp(r_num / r_den, 0.0f, 1.0f);
 
-    // 16. Hollywood Color Grade & Volumetric Depth Mask
+    // Hollywood Color Grade & Volumetric Depth Mask
     rgb.r *= 1.15f;
     rgb.b *= 0.88f;
 
