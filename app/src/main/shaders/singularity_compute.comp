@@ -6,7 +6,8 @@ layout(local_size_x = 16, local_size_y = 16) in;
 
 layout(binding = 0, rgba8) readonly uniform image2D inputImage;
 layout(binding = 1, rgba8) writeonly uniform image2D outputImage;
-layout(binding = 2, rgba8) readonly uniform image2D previousFrameImage;
+// --- 5-Frame True Circular Ring Buffer Array (असली 5-फ्रेम का इतिहास) ---
+layout(binding = 2, rgba8) readonly uniform image2DArray historyRingBuffer;
 
 layout(push_constant, std430) uniform FinalConstants {
     float zoomFactor;
@@ -43,11 +44,13 @@ void main() {
     ivec2 localCoord = ivec2(gl_LocalInvocationID.xy);
     ivec2 sz = ivec2(pc.width, pc.height);
     
-    // 1. Strict Boundary Check (क्रैश रोकने के लिए बुलेटप्रूफ गार्ड)
-    if (pixelCoord.x >= sz.x || pixelCoord.y >= sz.y) return;
+    // --- BULLETPROOF DEADLOCK FIX ---
+    // कोई भी थ्रेड बैरियर से पहले return नहीं मारेगा। 
+    // हम कोऑर्डिनेट्स को सेफली क्लैंप करके लोड करेंगे ताकि हर थ्रेड बैरियर तक पहुँचे।
+    ivec2 safeCoord = clamp(pixelCoord, ivec2(0), sz - 1);
 
     // 2. Gyro Stabilization & Safe Coordinate Shift
-    ivec2 shiftedCoord = pixelCoord + ivec2(round(pc.gyroShiftX), round(pc.gyroShiftY));
+    ivec2 shiftedCoord = safeCoord + ivec2(round(pc.gyroShiftX), round(pc.gyroShiftY));
     shiftedCoord = clamp(shiftedCoord, ivec2(0), sz - 1);
 
     // --- शाही शेयर्ड मेमोरी टाइल लोडिंग (एजेस और कोनों सहित 100% सेफ) ---
@@ -79,9 +82,12 @@ void main() {
     if (localCoord.x == 15 && localCoord.y == 15) {
         sharedTile[17][17] = imageLoad(inputImage, clamp(shiftedCoord + ivec2(1, 1), ivec2(0), sz - 1)).rgb;
     }
+    
+    // सभी 256 थ्रेड्स यहाँ एक साथ सिंक होंगे — कोई डेडलॉक नहीं!
     barrier();
 
-    vec3 rgb = sharedTile[localCoord.y + 1][localCoord.x + 1];
+    // 1. Strict Boundary Check (बैरियर पार होने के बाद अब आउट-ऑफ़-बाउंड्स थ्रेड्स को बाहर करें)
+    if (pixelCoord.x >= sz.x || pixelCoord.y >= sz.y) return;
 
     // 3. Stencil Neighborhood Sampling (शेयर्ड मेमोरी से सीधे हाई-स्पीड फेच)
     vec3 left   = sharedTile[localCoord.y + 1][localCoord.x];
@@ -93,6 +99,31 @@ void main() {
     vec3 bl     = sharedTile[localCoord.y + 2][localCoord.x];
     vec3 br     = sharedTile[localCoord.y + 2][localCoord.x + 2];
 
+    // --- 5-Frame True Circular Ring Buffer Register-Level Accumulation Core ---
+    vec3 currentPixel = sharedTile[localCoord.y + 1][localCoord.x + 1];
+    
+    ivec2 clampedCoord = clamp(pixelCoord, ivec2(0), sz - 1);
+    vec3 h0 = imageLoad(historyRingBuffer, ivec3(clampedCoord, 0)).rgb;
+    vec3 h1 = imageLoad(historyRingBuffer, ivec3(clampedCoord, 1)).rgb;
+    vec3 h2 = imageLoad(historyRingBuffer, ivec3(clampedCoord, 2)).rgb;
+    vec3 h3 = imageLoad(historyRingBuffer, ivec3(clampedCoord, 3)).rgb;
+    vec3 h4 = imageLoad(historyRingBuffer, ivec3(clampedCoord, 4)).rgb;
+
+    // 5-Frame Weighted Historical Blend (GCam Killer Multi-Frame Math)
+    vec3 stackedHistory = (h0 * 0.4f + h1 * 0.25f + h2 * 0.15f + h3 * 0.12f + h4 * 0.08f);
+
+    float currentLumaCore = dot(currentPixel, vec3(0.2126f, 0.7152f, 0.0722f));
+    float subgroupMeanLuma = subgroupAdd(currentLumaCore) / float(gl_SubgroupSize);
+    
+    float varianceDelta = abs(currentLumaCore - subgroupMeanLuma);
+    float registerConfidence = clamp(1.0f - (varianceDelta * 5.0f), 0.05f, 0.95f);
+    
+    vec3 accumulatedCore = mix(currentPixel, stackedHistory, registerConfidence * 0.85f);
+    vec3 enhancedCore = mix(currentPixel, accumulatedCore, registerConfidence);
+    
+    // Base working RGB initialized from our 5-frame ring buffer core
+    vec3 rgb = enhancedCore;
+
     // 4. Structure Tensor & Gradient Magnitude
     vec3 dx = (right - left) * 0.5f + (tr - tl + br - bl) * 0.25f;
     vec3 dy = (bottom - top) * 0.5f + (bl - tl + br - tr) * 0.25f;
@@ -103,10 +134,9 @@ void main() {
     float localVariance = abs(rgb.g - localMean);
     float adaptiveContrast = mix(1.0f, 1.25f, clamp(localVariance * 4.0f, 0.0f, 1.0f));
 
-    // 5. Temporal Optical Flow & Feedback
-    vec4 prevPx = imageLoad(previousFrameImage, clamp(pixelCoord, ivec2(0), sz - 1));
+    // 5. Temporal Optical Flow & Feedback (Cleaned & Direct 5-Frame Feed)
     vec2 motionVector = vec2(-pc.gyroShiftX, -pc.gyroShiftY);
-    rgb = mix(rgb, prevPx.rgb, clamp(length(motionVector) * 0.05f, 0.0f, 0.2f));
+    rgb = mix(rgb, stackedHistory, clamp(length(motionVector) * 0.05f, 0.0f, 0.15f));
 
     // 6. Luma Weights & Subgroup Denoise
     vec3 lumaWeights = vec3(0.2126f, 0.7152f, 0.0722f);
