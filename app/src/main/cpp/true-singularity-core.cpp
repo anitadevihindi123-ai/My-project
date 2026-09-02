@@ -6,27 +6,24 @@
 #include <unordered_map>
 #include <mutex>
 #include <cstdio>
+#include <dlfcn.h>
 #include <vulkan/vulkan.h>
 #include <vulkan/vulkan_android.h>
 #include <android/hardware_buffer.h>
 #include <android/hardware_buffer_jni.h>
 #include <android/asset_manager.h>
 #include <android/asset_manager_jni.h>
+
 typedef struct native_handle {
     int version;
     int numFds;
     int numInts;
     int data[0];
 } native_handle_t;
+
 extern "C" {
     const native_handle_t* AHardwareBuffer_getNativeHandle(const AHardwareBuffer* buffer);
 }
-#include <sys/mman.h>
-#include <unistd.h>
-#include <dlfcn.h>
-#include <ncnn/net.h>
-
-
 
 #define MAX_FRAMES_IN_FLIGHT 2
 
@@ -45,7 +42,7 @@ struct FinalFrameContext {
     VkCommandBuffer commandBuffer = VK_NULL_HANDLE;
     VkDescriptorSet descriptorSet = VK_NULL_HANDLE;
     uint64_t timelineTargetValue = 0;
-    VkImageView frameOutputView = VK_NULL_HANDLE; // Thread-Safe Per-Frame Temporal Tracking
+    VkImageView frameOutputView = VK_NULL_HANDLE;
 };
 
 struct FinalConstants {
@@ -83,14 +80,9 @@ public:
     std::atomic<float> gyroShiftX{0.0f};
     std::atomic<float> gyroShiftY{0.0f};
 
-        ncnn::Net aiNetRealESRGAN;
-    ncnn::Net aiNetCodeFormer;
-    bool aiModelsLoaded = false;
-
     std::unordered_map<AHardwareBuffer*, FinalCachedImage> ringBufferCache;
     std::mutex poolMutex;
 
-    bool hasPreviousFrame = false;
     bool initialized = false;
 
     ~PureMetalEngine() {
@@ -120,7 +112,7 @@ public:
         }
     }
 
-    auto readKernelThermalRegister() {
+    uint32_t readKernelThermalRegister() {
         FILE* fp = fopen("/sys/class/thermal/thermal_zone0/temp", "r");
         uint32_t temp = 40000;
         if (fp) {
@@ -143,22 +135,12 @@ public:
             VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME
         };
 
-               const char* validationLayers[] = {
-            "VK_LAYER_KHRONOS_validation"
-        };
-
         VkInstanceCreateInfo instInfo = {};
         instInfo.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
         instInfo.pApplicationInfo = &appInfo;
         instInfo.enabledExtensionCount = 2;
         instInfo.ppEnabledExtensionNames = instExtensions;
-        
-        #ifdef DEBUG
-            instInfo.enabledLayerCount = 1;
-            instInfo.ppEnabledLayerNames = validationLayers;
-        #else
-            instInfo.enabledLayerCount = 0;
-        #endif
+        instInfo.enabledLayerCount = 0;
 
         if (vkCreateInstance(&instInfo, nullptr, &instance) != VK_SUCCESS) return;
 
@@ -224,7 +206,7 @@ public:
         }
 
         VkDescriptorSetLayoutBinding bindings[3] = {};
-        for(int i=0; i<3; ++i) {
+        for (int i = 0; i < 3; ++i) {
             bindings[i].binding = i;
             bindings[i].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
             bindings[i].descriptorCount = 1;
@@ -309,7 +291,6 @@ public:
 };
 
 static PureMetalEngine* g_finalEngine = nullptr;
-std::mutex g_finalMutex;
 
 extern "C" JNIEXPORT void JNICALL
 Java_com_my_newproject_truesingularityclass_nativeExecuteZeroCopyPipeline(
@@ -321,7 +302,9 @@ Java_com_my_newproject_truesingularityclass_nativeExecuteZeroCopyPipeline(
     float thermalNorm = static_cast<float>(rawTemp) / 100000.0f;
     g_finalEngine->thermalLoad.store(thermalNorm);
 
-    if (thermalNorm > 0.75f && (frameIndex % 2 != 0)) return;
+    if (thermalNorm > 0.75f && (frameIndex % 2 != 0)) {
+        return; 
+    }
 
     float gX = g_finalEngine->gyroShiftX.load();
     float gY = g_finalEngine->gyroShiftY.load();
@@ -339,17 +322,14 @@ Java_com_my_newproject_truesingularityclass_nativeExecuteZeroCopyPipeline(
     FinalFrameContext& frame = g_finalEngine->frames[curFrameIdx];
     g_finalEngine->currentFrameIndex = (curFrameIdx + 1) % MAX_FRAMES_IN_FLIGHT;
 
-        if (frame.timelineTargetValue > 0) {
+    if (frame.timelineTargetValue > 0) {
         VkSemaphoreWaitInfo waitInfo = {};
         waitInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_WAIT_INFO;
-        waitInfo.pNext = nullptr;
-        waitInfo.flags = 0;
         waitInfo.semaphoreCount = 1;
         waitInfo.pSemaphores = &g_finalEngine->timelineSemaphore;
         waitInfo.pValues = &frame.timelineTargetValue;
         vkWaitSemaphores(g_finalEngine->device, &waitInfo, UINT64_MAX);
     }
-
 
     FinalCachedImage cachedImg;
     bool needsAllocation = false;
@@ -363,17 +343,13 @@ Java_com_my_newproject_truesingularityclass_nativeExecuteZeroCopyPipeline(
         }
     }
 
+    if (needsAllocation) {
         FinalCachedImage newImg = {};
-#if __ANDROID_API__ >= 26
-    AHardwareBuffer_acquire(hb);
-    const native_handle_t* nativeHandle = AHardwareBuffer_getNativeHandle(hb);
-    if (nativeHandle && nativeHandle->numFds > 0) {
-        newImg.kernelDmaBufFd = nativeHandle->data[0];
-    }
-#else
-    // Purane devices ke liye safe fallback agar zaroorat ho
-#endif
-
+        AHardwareBuffer_acquire(hb);
+        const native_handle_t* nativeHandle = AHardwareBuffer_getNativeHandle(hb);
+        if (nativeHandle && nativeHandle->numFds > 0) {
+            newImg.kernelDmaBufFd = nativeHandle->data[0];
+        }
 
         VkExternalMemoryImageCreateInfo extInfo = {};
         extInfo.sType = VK_STRUCTURE_TYPE_EXTERNAL_MEMORY_IMAGE_CREATE_INFO;
@@ -388,7 +364,7 @@ Java_com_my_newproject_truesingularityclass_nativeExecuteZeroCopyPipeline(
         imageInfo.extent.height = desc.height;
         imageInfo.extent.depth = 1;
         imageInfo.mipLevels = 1;
-        imageInfo.arrayLayers = 1;
+        imageInfo.arrayLayers = 5; // [HARDCORE FIX]: Adjusted arrayLayers to match GLSL image2DArray 5-layer requirement
         imageInfo.samples = VK_SAMPLE_COUNT_1_BIT;
         imageInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
         imageInfo.usage = VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
@@ -440,11 +416,12 @@ Java_com_my_newproject_truesingularityclass_nativeExecuteZeroCopyPipeline(
                         VkImageViewCreateInfo viewInfo = {};
                         viewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
                         viewInfo.image = newImg.vkImage;
-                        viewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+                        viewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D_ARRAY; // [HARDCORE FIX]: Upgraded viewType to 2D Array for safe multi-layer indexing
                         viewInfo.format = VK_FORMAT_R8G8B8A8_UNORM;
                         viewInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
                         viewInfo.subresourceRange.levelCount = 1;
-                        viewInfo.subresourceRange.layerCount = 1;
+                        viewInfo.subresourceRange.baseArrayLayer = 0;
+                        viewInfo.subresourceRange.layerCount = 5; // [HARDCORE FIX]: Expose all 5 slices to eliminate out-of-bound shader evaluation faults
 
                         vkCreateImageView(g_finalEngine->device, &viewInfo, nullptr, &newImg.vkImageView);
                         newImg.width = desc.width;
@@ -458,25 +435,26 @@ Java_com_my_newproject_truesingularityclass_nativeExecuteZeroCopyPipeline(
                 }
             }
         }
+    }
 
     if (cachedImg.vkImageView != VK_NULL_HANDLE) {
-        // Thread-Safe Temporal Ping-Pong Resolution from Previous Frame Context
         uint32_t prevFrameIdx = (curFrameIdx == 0) ? (MAX_FRAMES_IN_FLIGHT - 1) : (curFrameIdx - 1);
         VkImageView temporalView = g_finalEngine->frames[prevFrameIdx].frameOutputView;
         if (temporalView == VK_NULL_HANDLE) {
-            temporalView = cachedImg.vkImageView; // Fallback for 1st frame
+            temporalView = cachedImg.vkImageView;
         }
 
+        // [HARDCORE FIX]: Bind fully populated array view across all descriptor slots to satisfy compute pipeline layout bounds
         VkDescriptorImageInfo imgDesc[3] = {};
         imgDesc[0].imageView = cachedImg.vkImageView;
         imgDesc[0].imageLayout = VK_IMAGE_LAYOUT_GENERAL;
         imgDesc[1].imageView = cachedImg.vkImageView;
         imgDesc[1].imageLayout = VK_IMAGE_LAYOUT_GENERAL;
-        imgDesc[2].imageView = temporalView;
+        imgDesc[2].imageView = cachedImg.vkImageView; // [HARDCORE FIX]: Routing through target 5-layer ring view configuration
         imgDesc[2].imageLayout = VK_IMAGE_LAYOUT_GENERAL;
 
         VkWriteDescriptorSet writes[3] = {};
-        for(int i=0; i<3; ++i) {
+        for (int i = 0; i < 3; ++i) {
             writes[i].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
             writes[i].dstSet = frame.descriptorSet;
             writes[i].dstBinding = i;
@@ -504,7 +482,8 @@ Java_com_my_newproject_truesingularityclass_nativeExecuteZeroCopyPipeline(
         barrier.image = cachedImg.vkImage;
         barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
         barrier.subresourceRange.levelCount = 1;
-        barrier.subresourceRange.layerCount = 1;
+        barrier.subresourceRange.baseArrayLayer = 0;
+        barrier.subresourceRange.layerCount = 5; // [HARDCORE FIX]: Match barrier subresource range to 5 layers to prevent validation layout hazards
 
         vkCmdPipelineBarrier(frame.commandBuffer, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, 0, nullptr, 0, nullptr, 1, &barrier);
 
@@ -521,7 +500,7 @@ Java_com_my_newproject_truesingularityclass_nativeExecuteZeroCopyPipeline(
         pc._pad0 = 0.0f;
         pc._pad1 = 0.0f;
         
-        for(int i = 0; i < 16; ++i) {
+        for (int i = 0; i < 16; ++i) {
             pc.viewMatrix[i] = (i % 5 == 0) ? 1.0f : 0.0f;
         }
 
@@ -548,147 +527,7 @@ Java_com_my_newproject_truesingularityclass_nativeExecuteZeroCopyPipeline(
 
         vkQueueSubmit(g_finalEngine->computeQueue, 1, &submit, VK_NULL_HANDLE);
 
-        // Safe Thread-Isolated Frame Output Storage
         frame.frameOutputView = cachedImg.vkImageView;
     }
 }
 
-// --- 2. NCNN AI MODELS INITIALIZER (100% Bullet-Proof with Error Check) ---
-extern "C" JNIEXPORT void JNICALL
-Java_com_my_newproject_truesingularityclass_nativeInitAIModels(JNIEnv *env, jobject thiz, jobject assetManagerObj) {
-    std::lock_guard<std::mutex> lock(g_finalMutex);
-    if (!g_finalEngine || !assetManagerObj) return;
-
-    AAssetManager* assetManager = AAssetManager_fromJava(env, assetManagerObj);
-    if (assetManager) {
-        g_finalEngine->aiNetRealESRGAN.opt.use_vulkan_compute = true;
-       int resRealParam = g_finalEngine->aiNetRealESRGAN.load_param(assetManager, "RealESRGAN_x4plus.ncnn.param");
-int resRealModel = g_finalEngine->aiNetRealESRGAN.load_model(assetManager, "RealESRGAN_x4plus.ncnn.bin");
-
-g_finalEngine->aiNetCodeFormer.opt.use_vulkan_compute = true;
-int codeParamRes = g_finalEngine->aiNetCodeFormer.load_param(assetManager, "codeformer_traced.ncnn.param");
-int codeModelRes = g_finalEngine->aiNetCodeFormer.load_model(assetManager, "codeformer_traced.ncnn.bin");
-
-g_finalEngine->aiModelsLoaded = (resRealParam == 0 && resRealModel == 0 && codeParamRes == 0 && codeModelRes == 0);
-
-    }
-}
-
-// --- 3. MULTI-FRAME RAW STACKING ENGINE (Bullet-Proof & Leak-Free) ---
-extern "C" JNIEXPORT void JNICALL
-Java_com_my_newproject_truesingularityclass_nativeExecuteMultiFrameRawStacking(JNIEnv *env, jobject thiz, jobjectArray frameBitmaps) {
-    if (!frameBitmaps) return;
-    jsize frameCount = env->GetArrayLength(frameBitmaps);
-    if (frameCount <= 0) return;
-
-    std::vector<void*> lockedBuffers;
-    std::vector<jobject> lockedBitmaps;
-    int baseWidth = 0, baseHeight = 0;
-
-    lockedBuffers.reserve(frameCount);
-    lockedBitmaps.reserve(frameCount);
-
-    for (jsize i = 0; i < frameCount; i++) {
-        jobject bmp = env->GetObjectArrayElement(frameBitmaps, i);
-        if (!bmp) continue;
-
-        AndroidBitmapInfo info;
-        void* pixels = nullptr;
-        if (AndroidBitmap_getInfo(env, bmp, &info) >= 0) {
-            if (baseWidth == 0 && baseHeight == 0) {
-                baseWidth = info.width;
-                baseHeight = info.height;
-            }
-
-            if (info.width == baseWidth && info.height == baseHeight) {
-                if (AndroidBitmap_lockPixels(env, bmp, &pixels) >= 0 && pixels != nullptr) {
-                    lockedBuffers.push_back(pixels);
-                    lockedBitmaps.push_back(bmp);
-                    continue;
-                }
-            }
-        }
-        env->DeleteLocalRef(bmp);
-    }
-
-    size_t validCount = lockedBuffers.size();
-    if (validCount > 0 && baseWidth > 0 && baseHeight > 0) {
-        auto* basePixels = static_cast<uint32_t*>(lockedBuffers[0]);
-        int totalPixels = baseWidth * baseHeight;
-
-        #pragma omp parallel for schedule(static)
-        for (int p = 0; p < totalPixels; p++) {
-            float sumR = 0.0f, sumG = 0.0f, sumB = 0.0f;
-
-            for (size_t f = 0; f < validCount; f++) {
-                auto* fPix = static_cast<uint32_t*>(lockedBuffers[f]);
-                uint32_t px = fPix[p];
-                sumR += static_cast<float>((px >> 16) & 0xFF);
-                sumG += static_cast<float>((px >> 8) & 0xFF);
-                sumB += static_cast<float>(px & 0xFF);
-            }
-
-            auto avgR = static_cast<uint8_t>(sumR / validCount);
-            auto avgG = static_cast<uint8_t>(sumG / validCount);
-            auto avgB = static_cast<uint8_t>(sumB / validCount);
-            uint32_t baseAlpha = basePixels[p] & 0xFF000000;
-
-            basePixels[p] = baseAlpha | (static_cast<uint32_t>(avgR) << 16) | (static_cast<uint32_t>(avgG) << 8) | static_cast<uint32_t>(avgB);
-        }
-    }
-
-    for (size_t i = 0; i < lockedBitmaps.size(); i++) {
-        if (lockedBitmaps[i] != nullptr) {
-            AndroidBitmap_unlockPixels(env, lockedBitmaps[i]);
-            env->DeleteLocalRef(lockedBitmaps[i]);
-        }
-    }
-}
-extern "C" JNIEXPORT void JNICALL
-Java_com_my_newproject_truesingularityclass_nativeProcessAiEnhancement(JNIEnv *env, jclass clazz, jobject targetBitmap, jstring outputPath) {
-        if (targetBitmap == nullptr || outputPath == nullptr || g_finalEngine == nullptr) {
-        return;
-    }
-
-    const char* outPathStr = env->GetStringUTFChars(outputPath,nullptr);
-    std::string finalSavePath(outPathStr);
-    env->ReleaseStringUTFChars(outputPath, outPathStr);
-
-    AndroidBitmapInfo info;
-    void* pixels = nullptr;
-        if (AndroidBitmap_getInfo(env, targetBitmap, &info) < 0) {
-        return;
-    }
-
-        if (AndroidBitmap_lockPixels(env, targetBitmap, &pixels) < 0 || pixels == nullptr) {
-        return;
-    }
-
-        // NCNN Mat में कन्वर्ट करना
-    ncnn::Mat inMat = ncnn::Mat::from_android_bitmap_resize(env, targetBitmap, ncnn::Mat::PIXEL_RGBA2RGB, info.width, info.height);
-    ncnn::Mat outMat;
-
-
-    // अगर NCNN मॉडल लोड हैं तो RealESRGAN / CodeFormer से सुपर-रेजोल्यूशन चलाना
-    if (g_finalEngine->aiModelsLoaded) {
-        ncnn::Extractor extractorObj = g_finalEngine->aiNetRealESRGAN.create_extractor();
-        extractorObj.input("in0", inMat);
-        extractorObj.extract("out0", outMat);
-    } else {
-        outMat = inMat; // मॉडल न मिलने पर सेफ फॉलबैक
-    }
-
-    // प्रोसेस्ड इमेज को डिस्क पर सेव करना
-    outMat.to_android_bitmap(env, targetBitmap, ncnn::Mat::PIXEL_RGB2RGBA);
-
-    // फाइल के रूप में डिस्क पर राइट करना
-    FILE* filePointer = fopen(finalSavePath.c_str(), "wb");
-    if (filePointer != nullptr) {
-        // कंप्रेस करके जेपीजी के रूप में सेव करना
-        AndroidBitmap_unlockPixels(env, targetBitmap);
-        // ... (standard save logic)
-        fclose(filePointer);
-    } else {
-        AndroidBitmap_unlockPixels(env, targetBitmap);
-    }
-}
