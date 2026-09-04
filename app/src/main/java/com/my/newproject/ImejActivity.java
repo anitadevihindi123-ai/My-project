@@ -89,8 +89,8 @@ public class ImejActivity extends AppCompatActivity {
 			android.content.Intent intent = new android.content.Intent(ImejActivity.this, MainActivity.class);
 			startActivity(intent);
 		});
-	
-
+		
+	}
 	    private void setupEffectClickListeners() {
 		binding.textview1.setOnClickListener(v -> {
 			v.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP);
