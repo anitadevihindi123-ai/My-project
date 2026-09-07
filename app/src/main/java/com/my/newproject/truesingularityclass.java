@@ -455,22 +455,7 @@ imageReader.setOnImageAvailableListener(new ImageReader.OnImageAvailableListener
         if (image == null) return;
 
         try {
-            // 1. YUV प्लेन डेटा को बिना किसी करप्शन के सुरक्षित खींचना
-            Image.Plane[] planes = image.getPlanes();
-            if (planes != null && planes.length > 0) {
-                ByteBuffer yBuffer = planes[0].getBuffer();
-                if (yBuffer != null) {
-                    yBuffer.rewind();
-                    int remaining = yBuffer.remaining();
-                    
-                    if (remaining > 0) {
-                        if (latestJpegBytes == null || latestJpegBytes.length != remaining) {
-                            latestJpegBytes = new byte[remaining];
-                        }
-                        yBuffer.get(latestJpegBytes);
-                    }
-                }
-            }
+            
 
             // 2. ज़ीरो-कॉपी हार्डवेयर बफर पाइपलाइन (सिंक-प्रोटेक्टेड)
             if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
