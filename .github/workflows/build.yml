@@ -48,7 +48,7 @@ jobs:
           ls -lh app/build/outputs/apk/release/*.apk
           echo "=== Unzipping APK to check internal files ==="
           mkdir -p extracted_apk
-          unzip -q app/build/outputs/apk/release/app-arm64-v8a-release.apk -d extracted_apk
+          unzip -q app/build/outputs/apk/release/app-release.apk -d extracted_apk
           echo "=== Listing EVERY Single File Sorted by Size ==="
           find extracted_apk -type f -exec du -h {} + | sort -rh
 
