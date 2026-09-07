@@ -453,7 +453,7 @@ Java_com_my_newproject_truesingularityclass_nativeExecuteZeroCopyPipeline(
         VkDescriptorImageInfo imgDesc[3] = {};
         imgDesc[0].imageView = cachedImg.vkImageView;
         imgDesc[0].imageLayout = VK_IMAGE_LAYOUT_GENERAL;
-        imgDesc[1].imageView = cachedImg.vkImageView;
+        imgDesc[1].imageView = temporalView;
         imgDesc[1].imageLayout = VK_IMAGE_LAYOUT_GENERAL;
         imgDesc[2].imageView = cachedImg.vkImageView; // [HARDCORE FIX]: Routing through target 5-layer ring view configuration
         imgDesc[2].imageLayout = VK_IMAGE_LAYOUT_GENERAL;
