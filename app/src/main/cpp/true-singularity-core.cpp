@@ -530,4 +530,29 @@ Java_com_my_newproject_truesingularityclass_nativeExecuteZeroCopyPipeline(
         frame.frameOutputView = cachedImg.vkImageView;
     }
 }
+extern "C" JNIEXPORT void JNICALL
+Java_com_my_newproject_truesingularityclass_nativeInitMasterEngine(
+        JNIEnv *env, jobject thiz, jlong seed, jint targetWidth, jint targetHeight) {
+    if (!g_finalEngine) {
+        g_finalEngine = new PureMetalEngine();
+    }
+}
+
+extern "C" JNIEXPORT void JNICALL
+Java_com_my_newproject_truesingularityclass_nativeInitAssetManager(
+        JNIEnv *env, jobject thiz, jobject assetManagerObj) {
+    if (g_finalEngine) {
+        AAssetManager* assetManager = AAssetManager_fromJava(env, assetManagerObj);
+        g_finalEngine->ignite(assetManager);
+    }
+}
+
+extern "C" JNIEXPORT void JNICALL
+Java_com_my_newproject_truesingularityclass_nativeDestroyMasterEngine(
+        JNIEnv *env, jobject thiz) {
+    if (g_finalEngine) {
+        delete g_finalEngine;
+        g_finalEngine = nullptr;
+    }
+}
 
