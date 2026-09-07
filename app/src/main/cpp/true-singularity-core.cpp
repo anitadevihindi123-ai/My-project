@@ -84,6 +84,7 @@ public:
     std::mutex poolMutex;
 
     bool initialized = false;
+    PFN_vkWaitSemaphores pfnVkWaitSemaphores = nullptr;
 
     ~PureMetalEngine() {
         if (device != VK_NULL_HANDLE) {
@@ -285,6 +286,9 @@ public:
             frames[i].timelineTargetValue = 0;
             frames[i].frameOutputView = VK_NULL_HANDLE;
         }
+                    pfnVkWaitSemaphores = reinterpret_cast<PFN_vkWaitSemaphores>(
+            vkGetDeviceProcAddr(device, "vkWaitSemaphores")
+        );
 
         initialized = true;
     }
