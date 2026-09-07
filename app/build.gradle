@@ -3,10 +3,6 @@ plugins {
 }
 
 android {
-        ndk {
-        abiFilters 'armeabi-v7a', 'arm64-v8a', 'x86', 'x86_64'
-    }
-
     compileSdk 34
     ndkVersion "26.1.10909125"
     useLibrary 'org.apache.http.legacy'
@@ -28,6 +24,10 @@ android {
         versionCode 1
         versionName "1.0"
        
+        ndk {
+            abiFilters 'armeabi-v7a', 'arm64-v8a', 'x86', 'x86_64'
+        }
+
         externalNativeBuild {
             cmake {
                 arguments "-DANDROID_ARM_MODE=arm",
