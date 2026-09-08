@@ -52,15 +52,15 @@ public class truesingularityclass {
     public native String nativeGetZoomShader(float zoomFactor);
     public native void nativeInitAssetManager(Object assetManagerObj);
     public native void nativeExecuteZeroCopyPipeline(Object hardwareBufferObj, float zoomFactor, long frameIndex);
-    public native void nativeProcessDirectPixelBuffer(Bitmap targetBitmap, float zoomFactor, long frameIndex);
+    public native void nativeProcessDirectPixelBuffer(Object hardwareBufferObj, float zoomFactor, long frameIndex);
     public native void nativeExecuteMultiFrameRawStacking(Object[] hardwareBuffers);
     public native void nativeApplyGyroStabilization(float gyroX, float gyroY, float gyroZ);
     public native String nativeExecuteMasterOmniPipeline(float zoomVal, float temperatureVal);
     public native void nativeUpdateViewMatrix(float[] matrix);
     public native void nativeDestroyMasterEngine();
     public static ArrayList<HashMap<String, Object>> inAppGalleryData = new ArrayList<>();
-    public static native void nativeProcessAiEnhancement(Bitmap targetBitmap, String outputPath);
-
+    public static native void nativeProcessAiEnhancement(Object hardwareBufferObj, String outputPath);
+ 
     private Context context;
     private CameraDevice singularityCamera;
     private CameraCaptureSession singularitySession;
