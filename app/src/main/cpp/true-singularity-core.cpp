@@ -79,6 +79,12 @@ public:
     std::atomic<float> thermalLoad{0.1f};
     std::atomic<float> gyroShiftX{0.0f};
     std::atomic<float> gyroShiftY{0.0f};
+        float viewMatrix[16] = {
+        1.0f, 0.0f, 0.0f, 0.0f,
+        0.0f, 1.0f, 0.0f, 0.0f,
+        0.0f, 0.0f, 1.0f, 0.0f,
+        0.0f, 0.0f, 0.0f, 1.0f
+    };
 
     std::unordered_map<AHardwareBuffer*, FinalCachedImage> ringBufferCache;
     std::mutex poolMutex;
@@ -520,8 +526,8 @@ Java_com_my_newproject_truesingularityclass_nativeExecuteZeroCopyPipeline(
         pc._pad1 = 0.0f;
         
         for (int i = 0; i < 16; ++i) {
-            pc.viewMatrix[i] = (i % 5 == 0) ? 1.0f : 0.0f;
-        }
+    pc.viewMatrix[i] = g_finalEngine->viewMatrix[i];
+}
 
         vkCmdPushConstants(frame.commandBuffer, g_finalEngine->pipelineLayout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(pc), &pc);
         vkCmdDispatch(frame.commandBuffer, (desc.width + 15) / 16, (desc.height + 15) / 16, 1);
@@ -572,6 +578,18 @@ Java_com_my_newproject_truesingularityclass_nativeDestroyMasterEngine(
     if (g_finalEngine) {
         delete g_finalEngine;
         g_finalEngine = nullptr;
+    }
+}
+extern "C" JNIEXPORT void JNICALL
+Java_com_my_newproject_truesingularityclass_nativeUpdateViewMatrix(
+        JNIEnv *env, jobject thiz, jfloatArray matrixArray) {
+    if (!g_finalEngine || !g_finalEngine->initialized) return;
+    jfloat* elems = env->GetFloatArrayElements(matrixArray, nullptr);
+    if (elems) {
+        for (int i = 0; i < 16; ++i) {
+            g_finalEngine->viewMatrix[i] = elems[i];
+        }
+        env->ReleaseFloatArrayElements(matrixArray, elems, JNI_ABORT);
     }
 }
 
