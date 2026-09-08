@@ -601,13 +601,6 @@ Java_com_my_newproject_truesingularityclass_nativeGetZoomShader(
 }
 
 extern "C" JNIEXPORT void JNICALL
-Java_com_my_newproject_truesingularityclass_nativeProcessDirectPixelBuffer(
-        JNIEnv *env, jobject thiz, jobject pixelBufferObj) {
-    if (!g_finalEngine || !g_finalEngine->initialized) return;
-    // पिक्सेल बफर प्रोसेसिंग या डायरेक्ट मैपिंग का लॉजिक यहाँ लिखें
-}
-
-extern "C" JNIEXPORT void JNICALL
 Java_com_my_newproject_truesingularityclass_nativeExecuteMultiFrameRawStacking(
         JNIEnv *env, jobject thiz, jobjectArray hardwareBuffersArray) {
     if (!g_finalEngine || !g_finalEngine->initialized || !hardwareBuffersArray) return;
