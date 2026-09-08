@@ -645,3 +645,4 @@ imageReader.setOnImageAvailableListener(new ImageReader.OnImageAvailableListener
             workerHandler = null;
         }
     }
+}
