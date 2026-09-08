@@ -627,10 +627,21 @@ imageReader.setOnImageAvailableListener(new ImageReader.OnImageAvailableListener
         }
     }
 
-    public void destroyEngine() {
+        public void destroyEngine() {
         nativeDestroyMasterEngine();
+        
+        if (uiHandler != null && timerRunnable != null) {
+            uiHandler.removeCallbacks(timerRunnable);
+        }
+        
         if (workerThread != null) {
             workerThread.quitSafely();
+            try {
+                workerThread.join();
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+            workerThread = null;
+            workerHandler = null;
         }
     }
-}
