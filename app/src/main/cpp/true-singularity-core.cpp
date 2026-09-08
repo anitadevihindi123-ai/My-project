@@ -593,3 +593,17 @@ Java_com_my_newproject_truesingularityclass_nativeUpdateViewMatrix(
     }
 }
 
+extern "C" JNIEXPORT jstring JNICALL
+Java_com_my_newproject_truesingularityclass_nativeGetZoomShader(
+        JNIEnv *env, jobject thiz, jfloat zoomFactor) {
+    std::string shaderInfo = "Active Zoom Shader (Factor: " + std::to_string(zoomFactor) + ")";
+    return env->NewStringUTF(shaderInfo.c_str());
+}
+
+extern "C" JNIEXPORT void JNICALL
+Java_com_my_newproject_truesingularityclass_nativeProcessDirectPixelBuffer(
+        JNIEnv *env, jobject thiz, jobject pixelBufferObj) {
+    if (!g_finalEngine || !g_finalEngine->initialized) return;
+    // पिक्सेल बफर प्रोसेसिंग या डायरेक्ट मैपिंग का लॉजिक यहाँ लिखें
+}
+
