@@ -56,6 +56,7 @@ public class truesingularityclass {
     public native void nativeExecuteMultiFrameRawStacking(Bitmap[] frameBitmaps);
     public native void nativeApplyGyroStabilization(float gyroX, float gyroY, float gyroZ);
     public native String nativeExecuteMasterOmniPipeline(float zoomVal, float temperatureVal);
+    public native void nativeUpdateViewMatrix(float[] matrix);
     public native void nativeDestroyMasterEngine();
     public static ArrayList<HashMap<String, Object>> inAppGalleryData = new ArrayList<>();
     public static native void nativeProcessAiEnhancement(Bitmap targetBitmap, String outputPath);
