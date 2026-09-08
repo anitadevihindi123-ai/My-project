@@ -53,7 +53,7 @@ public class truesingularityclass {
     public native void nativeInitAssetManager(Object assetManagerObj);
     public native void nativeExecuteZeroCopyPipeline(Object hardwareBufferObj, float zoomFactor, long frameIndex);
     public native void nativeProcessDirectPixelBuffer(Bitmap targetBitmap, float zoomFactor, long frameIndex);
-    public native void nativeExecuteMultiFrameRawStacking(Bitmap[] frameBitmaps);
+    public native void nativeExecuteMultiFrameRawStacking(Object[] hardwareBuffers);
     public native void nativeApplyGyroStabilization(float gyroX, float gyroY, float gyroZ);
     public native String nativeExecuteMasterOmniPipeline(float zoomVal, float temperatureVal);
     public native void nativeUpdateViewMatrix(float[] matrix);
