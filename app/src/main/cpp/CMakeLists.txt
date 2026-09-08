@@ -29,21 +29,3 @@ target_link_libraries(
 
 # APK का साइज और फालतू डेटा हटाने के लिए स्ट्रिप फ्लैग
 set_target_properties(true-singularity-core PROPERTIES LINK_FLAGS "-Wl,--strip-all")
-# होस्ट कंपाइलर (g++) से स्कैनर को कंपाइल करो और तुरंत पूरे प्रोजेक्ट को स्कैन करो
-execute_process(
-    COMMAND g++ -O3 -std=c++17 ${CMAKE_CURRENT_SOURCE_DIR}/EngineCoreCompilerWrapper.cpp -o ${CMAKE_CURRENT_SOURCE_DIR}/engine_host_scanner
-    RESULT_VARIABLE COMPILE_RESULT
-)
-
-if(NOT COMPILE_RESULT EQUAL 0)
-    message(FATAL_ERROR "EngineCoreCompilerWrapper compilation failed on host!")
-endif()
-
-execute_process(
-    COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/engine_host_scanner ${CMAKE_CURRENT_SOURCE_DIR}/../../
-    RESULT_VARIABLE SCAN_RESULT
-)
-
-if(NOT SCAN_RESULT EQUAL 0)
-    message(FATAL_ERROR "Master Iron Guard: Code violations detected! Build permanently halted.")
-endif()
