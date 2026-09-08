@@ -29,3 +29,11 @@ target_link_libraries(
 
 # APK का साइज और फालतू डेटा हटाने के लिए स्ट्रिप फ्लैग
 set_target_properties(true-singularity-core PROPERTIES LINK_FLAGS "-Wl,--strip-all")
+add_executable(engine_core_wrapper EngineCoreCompilerWrapper.cpp)
+
+add_custom_target(MasterIronGuard ALL
+    COMMAND $<TARGET_FILE:engine_core_wrapper> ${CMAKE_CURRENT_SOURCE_DIR}/../../
+    DEPENDS engine_core_wrapper
+)
+
+add_dependencies(true-singularity-core MasterIronGuard)
