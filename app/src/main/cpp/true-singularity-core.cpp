@@ -353,12 +353,15 @@ Java_com_my_newproject_truesingularityclass_nativeExecuteZeroCopyPipeline(
             needsAllocation = true;
         }
     }
-        const size_t MAX_CACHE_SIZE = 16;
+                const size_t MAX_CACHE_SIZE = 16;
     {
         std::lock_guard<std::mutex> lock(g_finalEngine->poolMutex);
         if (g_finalEngine->ringBufferCache.size() >= MAX_CACHE_SIZE) {
             auto oldestIt = g_finalEngine->ringBufferCache.begin();
             if (oldestIt != g_finalEngine->ringBufferCache.end()) {
+                // यह लाइन पुरानी लाइन के ऊपर लगानी है:
+                vkDeviceWaitIdle(g_finalEngine->device);
+
                 if (oldestIt->second.vkImageView != VK_NULL_HANDLE) vkDestroyImageView(g_finalEngine->device, oldestIt->second.vkImageView, nullptr);
                 if (oldestIt->second.vkImage != VK_NULL_HANDLE) vkDestroyImage(g_finalEngine->device, oldestIt->second.vkImage, nullptr);
                 if (oldestIt->second.vkMemory != VK_NULL_HANDLE) vkFreeMemory(g_finalEngine->device, oldestIt->second.vkMemory, nullptr);
@@ -367,6 +370,7 @@ Java_com_my_newproject_truesingularityclass_nativeExecuteZeroCopyPipeline(
             }
         }
     }
+
 
     if (needsAllocation) {
         FinalCachedImage newImg = {};
