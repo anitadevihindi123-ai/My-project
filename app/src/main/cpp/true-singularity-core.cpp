@@ -136,15 +136,35 @@ if (thermalFd >= 0) {
         }
     }
 
-    uint32_t readKernelThermalRegister() {
-        FILE* fp = fopen("/sys/class/thermal/thermal_zone0/temp", "r");
-        uint32_t temp = 40000;
-        if (fp) {
-            fscanf(fp, "%u", &temp);
-            fclose(fp);
+    void initThermalMonitor() {
+    thermalFd = open("/sys/class/thermal/thermal_zone0/temp", O_RDONLY | O_NONBLOCK);
+
+    thermalThread = std::thread([this]() {
+        char buffer[64];
+        struct pollfd pfd;
+        pfd.fd = thermalFd;
+        pfd.events = POLLPRI | POLLERR;
+
+        while (thermalRunning) {
+            if (thermalFd >= 0) {
+                int ret = poll(&pfd, 1, 2000);
+                if (ret >= 0) {
+                    lseek(thermalFd, 0, SEEK_SET);
+                    int bytes = read(thermalFd, buffer, sizeof(buffer) - 1);
+                    if (bytes > 0) {
+                        buffer[bytes] = '\0';
+                        try {
+                            float temp = std::stof(buffer) / 1000.0f;
+                            cachedTemperature.store(temp, std::memory_order_relaxed);
+                        } catch (...) {}
+                    }
+                }
+            }
+            std::this_thread::sleep_for(std::chrono::seconds(2));
         }
-        return temp;
-    }
+    });
+}
+
 
     void ignite(AAssetManager* assetManager) {
         if (initialized) return;
