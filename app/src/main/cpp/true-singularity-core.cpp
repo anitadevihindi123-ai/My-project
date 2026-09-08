@@ -653,3 +653,36 @@ Java_com_my_newproject_truesingularityclass_nativeExecuteMasterOmniPipeline(
                          std::to_string(zoomVal) + ", Temp: " + std::to_string(temperatureVal) + ")";
     return env->NewStringUTF(result.c_str());
 }
+extern "C" JNIEXPORT void JNICALL
+Java_com_my_newproject_truesingularityclass_nativeProcessDirectPixelBuffer(
+        JNIEnv *env, jobject thiz, jobject hardwareBufferObj, jfloat zoomFactor, jlong frameIndex) {
+    if (!hardwareBufferObj || !g_finalEngine || !g_finalEngine->initialized) return;
+
+    static auto fromHb = reinterpret_cast<struct AHardwareBuffer*(*)(JNIEnv*, jobject)>(
+        dlsym(dlopen("libandroid.so", RTLD_LAZY), "AHardwareBuffer_fromHardwareBuffer")
+    );
+    AHardwareBuffer* hb = fromHb ? fromHb(env, hardwareBufferObj) : nullptr;
+    if (!hb) return;
+
+    // [DIRECT PIXEL BUFFER]: AHardwareBuffer का उपयोग करके पिक्सेल प्रोसेसिंग लॉजिक यहाँ लिखें
+}
+
+extern "C" JNIEXPORT void JNICALL
+Java_com_my_newproject_truesingularityclass_nativeProcessAiEnhancement(
+        JNIEnv *env, jclass clazz, jobject hardwareBufferObj, jstring outputPathObj) {
+    if (!hardwareBufferObj || !g_finalEngine || !g_finalEngine->initialized) return;
+
+    static auto fromHb = reinterpret_cast<struct AHardwareBuffer*(*)(JNIEnv*, jobject)>(
+        dlsym(dlopen("libandroid.so", RTLD_LAZY), "AHardwareBuffer_fromHardwareBuffer")
+    );
+    AHardwareBuffer* hb = fromHb ? fromHb(env, hardwareBufferObj) : nullptr;
+    if (!hb) return;
+
+    const char* outputPath = outputPathObj ? env->GetStringUTFChars(outputPathObj, nullptr) : nullptr;
+
+    // [AI ENHANCEMENT]: AHardwareBuffer और output path का उपयोग करके प्रोसेसिंग लॉजिक यहाँ लिखें
+
+    if (outputPath) {
+        env->ReleaseStringUTFChars(outputPathObj, outputPath);
+    }
+}
