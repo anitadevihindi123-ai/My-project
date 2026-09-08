@@ -168,6 +168,7 @@ if (thermalFd >= 0) {
 
     void ignite(AAssetManager* assetManager) {
         if (initialized) return;
+        initThermalMonitor();
 
         VkApplicationInfo appInfo = {};
         appInfo.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
