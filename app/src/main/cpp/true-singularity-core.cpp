@@ -13,6 +13,11 @@
 #include <android/hardware_buffer_jni.h>
 #include <android/asset_manager.h>
 #include <android/asset_manager_jni.h>
+#include <thread>
+#include <chrono>
+#include <fcntl.h>
+#include <unistd.h>
+#include <poll.h>
 
 typedef struct native_handle {
     int version;
@@ -91,9 +96,21 @@ public:
 
     bool initialized = false;
     PFN_vkWaitSemaphores pfnVkWaitSemaphores = nullptr;
+    std::atomic<float> cachedTemperature{45.0f};
+std::atomic<bool> thermalRunning{true};
+int thermalFd = -1;
+std::thread thermalThread;
 
     ~PureMetalEngine() {
-        if (device != VK_NULL_HANDLE) {
+       thermalRunning = false;
+if (thermalThread.joinable()) {
+    thermalThread.join();
+}
+if (thermalFd >= 0) {
+    close(thermalFd);
+    thermalFd = -1;
+}
+ if (device != VK_NULL_HANDLE) {
             vkDeviceWaitIdle(device);
             std::lock_guard<std::mutex> lock(poolMutex);
             for (auto& pair : ringBufferCache) {
