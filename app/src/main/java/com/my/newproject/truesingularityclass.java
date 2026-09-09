@@ -459,7 +459,6 @@ public class truesingularityclass {
                 e.printStackTrace();
             }
 
-imageReader = ImageReader.newInstance(targetWidth, targetHeight, ImageFormat.YUV_420_888, 2);
 imageReader.setOnImageAvailableListener(new ImageReader.OnImageAvailableListener() {
     @Override
     public void onImageAvailable(ImageReader reader) {
@@ -467,26 +466,51 @@ imageReader.setOnImageAvailableListener(new ImageReader.OnImageAvailableListener
         if (image == null) return;
 
         try {
-            
-
-            // 2. ज़ीरो-कॉपी हार्डवेयर बफर पाइपलाइन (सिंक-प्रोटेक्टेड)
             if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
                 android.hardware.HardwareBuffer hwBuffer = image.getHardwareBuffer();
                 if (hwBuffer != null) {
-                    try {
-                        globalFrameIndex++;
-                        // नेटिव C++ इंजन को सीधा पॉइंटर सौंपना
-                        nativeExecuteZeroCopyPipeline(hwBuffer, singularityZoom, globalFrameIndex);
-                    } finally {
-                        // हार्डवेयर बफर को सुरक्षित तरीके से रिलीज करना
-                        hwBuffer.close();
+                    globalFrameIndex++;
+
+                    // 1. सामान्य प्रीव्यू हमेशा चलता रहेगा (मक्खन की तरह स्मूथ)
+                    nativeExecuteZeroCopyPipeline(hwBuffer, singularityZoom, globalFrameIndex);
+
+                    // 2. शटर क्लिक होने के बाद हर फ्रेम पर यह बफर स्टैक होगा
+                    if (isShutterTriggered) {
+                        synchronized (captureQueue) {
+                            captureQueue.add(hwBuffer);
+                            
+                            // मान लीजिये आपको एक साथ स्टैकिंग के लिए 5 लगातार फ्रेम्स चाहिए
+                            if (captureQueue.size() >= 5) {
+                                Object[] buffersArray = captureQueue.toArray(new Object[0]);
+                                
+                                // C++ नेटिव मल्टी-फ्रेम रॉ स्टैकिंग इंजन को भेजना
+                                nativeExecuteMultiFrameRawStacking(buffersArray);
+                                
+                                // उपयोग के बाद पुराने बफर्स को सुरक्षित बंद करना
+                                for (Object buf : captureQueue) {
+                                    if (buf instanceof android.hardware.HardwareBuffer) {
+                                        ((android.hardware.HardwareBuffer) buf).close();
+                                    }
+                                }
+                                captureQueue.clear();
+                                
+                                // एक बार स्टैकिंग पूरी होने के बाद फ्लैग बंद कर दें (या चाहें तो लगातार चालू रख सकते हैं)
+                                isShutterTriggered = false;
+                                
+                                uiHandler.post(new Runnable() {
+                                    @Override
+                                    public void run() {
+                                        Toast.makeText(context, "✨ रॉ स्टैकिंग कम्पलीट!", Toast.LENGTH_SHORT).show();
+                                    }
+                                });
+                            }
+                        }
                     }
                 }
             }
         } catch (Exception e) {
             e.printStackTrace();
         } finally {
-            // सबसे जरूरी: जब तक पूरा डेटा और नेटिव पाइपलाइन का काम प्रोसेस न हो, इमेज बंद न हो
             image.close();
         }
     }
