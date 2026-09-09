@@ -329,39 +329,40 @@ public class truesingularityclass {
             });
         }
 
-        if (previewSurfaceView != null) {
-            previewSurfaceView.getHolder().addCallback(new SurfaceHolder.Callback() {
-                @Override
-                public void surfaceCreated(SurfaceHolder holder) {
-                    workerHandler.post(new Runnable() {
-                        @Override
-                        public void run() {
-                            startCameraPipeline();
-                        }
-                    });
-                }
+         previewSurfaceView.getHolder().addCallback(new SurfaceHolder.Callback() {
+    @Override
+    public void surfaceCreated(SurfaceHolder holder) {
+        // यहाँ नेटिव विंडो पास करें
+        nativeInitWindow(holder.getSurface());
+        workerHandler.post(new Runnable() {
+            @Override
+            public void run() {
+                startCameraPipeline();
+            }
+        });
+    }
 
-                @Override
-                public void surfaceChanged(SurfaceHolder holder, int format, int width, int height) {}
+    @Override
+    public void surfaceChanged(SurfaceHolder holder, int format, int width, int height) {}
 
-                @Override
-                public void surfaceDestroyed(SurfaceHolder holder) {
-                    try {
-                        if (singularitySession != null) {
-                            singularitySession.close();
-                            singularitySession = null;
-                        }
-                        if (singularityCamera != null) {
-                            singularityCamera.close();
-                            singularityCamera = null;
-                        }
-                    } catch (Exception e) {
-                        e.printStackTrace();
-                    }
-                }
-            });
+    @Override
+    public void surfaceDestroyed(SurfaceHolder holder) {
+        nativeDestroyWindow();
+        try {
+            if (singularitySession != null) {
+                singularitySession.close();
+                singularitySession = null;
+            }
+            if (singularityCamera != null) {
+                singularityCamera.close();
+                singularityCamera = null;
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
         }
     }
+});
+
     public void flipCameraAction() {
         if (isCapturingStream && recordingMode) return;
         isBackSensor = !isBackSensor;
