@@ -165,6 +165,10 @@ if (thermalFd >= 0) {
     });
 }
 
+    uint32_t readKernelThermalRegister() {
+        float temp = cachedTemperature.load(std::memory_order_relaxed);
+        return static_cast<uint32_t>(temp * 1000.0f);
+    }
 
     void ignite(AAssetManager* assetManager) {
         if (initialized) return;
