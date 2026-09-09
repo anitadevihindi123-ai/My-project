@@ -516,29 +516,30 @@ Java_com_my_newproject_truesingularityclass_nativeExecuteZeroCopyPipeline(
             temporalView = cachedImg.vkImageView;
         }
 
-        // [HARDCORE FIX]: Bind fully populated array view across all descriptor slots to satisfy compute pipeline layout bounds
-        VkDescriptorImageInfo imgDesc[3] = {};
-        imgDesc[0].imageView = cachedImg.vkImageView;
-        imgDesc[0].imageLayout = VK_IMAGE_LAYOUT_GENERAL;
-        imgDesc[1].imageView = temporalView;
-        imgDesc[1].imageLayout = VK_IMAGE_LAYOUT_GENERAL;
-        g_finalEngine->recentImageViews.push_back(cachedImg.vkImageView);
-if (g_finalEngine->recentImageViews.size() > 5) {
-    g_finalEngine->recentImageViews.erase(g_finalEngine->recentImageViews.begin());
-}
+  VkDescriptorImageInfo imgDesc[3] = {};
+    imgDesc[0].imageView = cachedImg.vkImageView;
+    imgDesc[0].imageLayout = VK_IMAGE_LAYOUT_GENERAL;
 
-        imgDesc[2].imageView = g_finalEngine->recentImageViews.back();
-imgDesc[2].imageLayout = VK_IMAGE_LAYOUT_GENERAL;
+    imgDesc[1].imageView = cachedImg.vkImageView;
+    imgDesc[1].imageLayout = VK_IMAGE_LAYOUT_GENERAL;
 
-        VkWriteDescriptorSet writes[3] = {};
-        for (int i = 0; i < 3; ++i) {
-            writes[i].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-            writes[i].dstSet = frame.descriptorSet;
-            writes[i].dstBinding = i;
-            writes[i].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
-            writes[i].descriptorCount = 1;
-            writes[i].pImageInfo = &imgDesc[i];
-        }
+    g_finalEngine->recentImageViews.push_back(cachedImg.vkImageView);
+    if (g_finalEngine->recentImageViews.size() > 5) {
+        g_finalEngine->recentImageViews.erase(g_finalEngine->recentImageViews.begin());
+    }
+    imgDesc[2].imageView = g_finalEngine->recentImageViews.back();
+    imgDesc[2].imageLayout = VK_IMAGE_LAYOUT_GENERAL;
+
+    VkWriteDescriptorSet writes[3] = {};
+    for (int i = 0; i < 3; ++i) {
+        writes[i].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        writes[i].dstSet = frame.descriptorSet;
+        writes[i].dstBinding = i;
+        writes[i].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
+        writes[i].descriptorCount = 1;
+        writes[i].pImageInfo = &imgDesc[i];
+    }
+
 
         vkUpdateDescriptorSets(g_finalEngine->device, 3, writes, 0, nullptr);
 
