@@ -753,9 +753,30 @@ Java_com_my_newproject_truesingularityclass_nativeExecuteMultiFrameRawStacking(
         }
     }
 
-    // [ZERO-COPY]: अब आपके पास सारे फ्रेम्स के AHardwareBuffer* पॉइंटर्स सीधे यहाँ आ गए हैं।
-    // इन्हें Vulkan compute pipeline में एक साथ बाइंड करके रॉ स्टैकिंग या नॉइज रिडक्शन कर सकते हैं।
+    if (frameBuffers.empty()) return;
+
+    uint32_t curFrameIdx = g_finalEngine->currentFrameIndex;
+    FinalFrameContext& frame = g_finalEngine->frames[curFrameIdx];
+    g_finalEngine->currentFrameIndex = (curFrameIdx + 1) % MAX_FRAMES_IN_FLIGHT;
+
+    VkCommandBufferBeginInfo beginInfo = {};
+    beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+    beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+
+    vkBeginCommandBuffer(frame.commandBuffer, &beginInfo);
+    vkCmdBindPipeline(frame.commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, g_finalEngine->computePipeline);
+    vkCmdBindDescriptorSets(frame.commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, g_finalEngine->pipelineLayout, 0, 1, &frame.descriptorSet, 0, nullptr);
+    
+    vkCmdDispatch(frame.commandBuffer, 512, 512, 1);
+    vkEndCommandBuffer(frame.commandBuffer);
+
+    for (auto* hb : frameBuffers) {
+        if (hb) {
+            AHardwareBuffer_release(hb);
+        }
+    }
 }
+
 extern "C" JNIEXPORT void JNICALL
 Java_com_my_newproject_truesingularityclass_nativeApplyGyroStabilization(
         JNIEnv *env, jobject thiz, jfloat gyroX, jfloat gyroY, jfloat gyroZ) {
