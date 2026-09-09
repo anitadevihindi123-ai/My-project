@@ -59,7 +59,6 @@ public class truesingularityclass {
     public native void nativeUpdateViewMatrix(float[] matrix);
     public native void nativeDestroyMasterEngine();
     public static ArrayList<HashMap<String, Object>> inAppGalleryData = new ArrayList<>();
-    public static native void nativeProcessAiEnhancement(Object hardwareBufferObj, String outputPath);
  
     private Context context;
     private CameraDevice singularityCamera;
