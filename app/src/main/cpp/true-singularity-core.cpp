@@ -350,6 +350,73 @@ if (thermalFd >= 0) {
         initialized = true;
     }
 };
+void initWindow(ANativeWindow* window) {
+    nativeWindow = window;
+    if (!instance || !physicalDevice || !device) return;
+
+    VkAndroidSurfaceCreateInfoKHR surfInfo = {};
+    surfInfo.sType = VK_STRUCTURE_TYPE_ANDROID_SURFACE_CREATE_INFO_KHR;
+    surfInfo.window = nativeWindow;
+    if (vkCreateAndroidSurfaceKHR(instance, &surfInfo, nullptr, &surface) != VK_SUCCESS) return;
+
+    // सिंपल Swapchain सेटअप
+    VkSurfaceCapabilitiesKHR caps;
+    vkGetPhysicalDeviceSurfaceCapabilitiesKHR(physicalDevice, surface, &caps);
+
+    VkSwapchainCreateInfoKHR swapInfo = {};
+    swapInfo.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
+    swapInfo.surface = surface;
+    swapInfo.minImageCount = 2;
+    swapInfo.imageFormat = VK_FORMAT_R8G8B8A8_UNORM;
+    swapInfo.imageColorSpace = VK_COLOR_SPACE_SRGB_NONLINEAR_KHR;
+    swapInfo.imageExtent = caps.currentExtent;
+    swapInfo.imageArrayLayers = 1;
+    swapInfo.imageUsage = VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
+    swapInfo.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
+    swapInfo.preTransform = caps.currentTransform;
+    swapInfo.compositeAlpha = VK_COMPOSITE_ALPHA_INHERIT_BIT_KHR;
+    swapInfo.presentMode = VK_PRESENT_MODE_FIFO_KHR;
+
+    vkCreateSwapchainKHR(device, &swapInfo, nullptr, &swapchain);
+    vkGetSwapchainImagesKHR(device, swapchain, &swapchainImageCount, nullptr);
+    swapchainImages.resize(swapchainImageCount);
+    vkGetSwapchainImagesKHR(device, swapchain, &swapchainImageCount, swapchainImages.data());
+
+    swapchainImageViews.resize(swapchainImageCount);
+    for (size_t i = 0; i < swapchainImageCount; i++) {
+        VkImageViewCreateInfo viewInfo = {};
+        viewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+        viewInfo.image = swapchainImages[i];
+        viewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+        viewInfo.format = VK_FORMAT_R8G8B8A8_UNORM;
+        viewInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+        viewInfo.subresourceRange.levelCount = 1;
+        viewInfo.subresourceRange.layerCount = 1;
+        vkCreateImageView(device, &viewInfo, nullptr, &swapchainImageViews[i]);
+    }
+}
+
+void destroyWindow() {
+    if (device != VK_NULL_HANDLE) {
+        vkDeviceWaitIdle(device);
+        for (auto v : swapchainImageViews) {
+            if (v != VK_NULL_HANDLE) vkDestroyImageView(device, v, nullptr);
+        }
+        swapchainImageViews.clear();
+        if (swapchain != VK_NULL_HANDLE) {
+            vkDestroySwapchainKHR(device, swapchain, nullptr);
+            swapchain = VK_NULL_HANDLE;
+        }
+        if (surface != VK_NULL_HANDLE) {
+            vkDestroySurfaceKHR(instance, surface, nullptr);
+            surface = VK_NULL_HANDLE;
+        }
+    }
+    if (nativeWindow) {
+        ANativeWindow_release(nativeWindow);
+        nativeWindow = nullptr;
+    }
+}
 
 static PureMetalEngine* g_finalEngine = nullptr;
 
