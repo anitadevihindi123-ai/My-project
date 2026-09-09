@@ -19,6 +19,11 @@ void enforce_system_halt(const std::string& layer, const std::string& error_msg,
 void scan_native_sources(const fs::path& root_dir) {
     for (auto const& dir_entry : fs::recursive_directory_iterator(root_dir)) {
         if (dir_entry.is_regular_file()) {
+            // स्कैनर खुद अपनी फाइल को स्कैन न करे, वरना यह खुद को ही क्रैश कर देगा
+            if (dir_entry.path().filename() == "EngineCoreCompilerWrapper.cpp") {
+                continue;
+            }
+
             std::string ext = dir_entry.path().extension().string();
             if (ext == ".cpp" || ext == ".h" || ext == ".hpp" || ext == ".cc") {
                 std::ifstream file(dir_entry.path());
@@ -44,7 +49,7 @@ void scan_native_sources(const fs::path& root_dir) {
                         }
                     }
 
-                    // मल्टी-लाइन या सिंगल-लाइन फंक्शन सिग्नेचर को कलेक्ट करें (ताकि JNI नाम न छूटे)
+                    // मल्टी-लाइन या सिंगल-लाइन फंक्शन सिग्नेचर को कलेक्ट करें
                     if (line.find("void ") != std::string::npos || line.find("int ") != std::string::npos || 
                         line.find("JNIEXPORT") != std::string::npos || line.find("extern \"C\"") != std::string::npos ||
                         line.find("nativeInit") != std::string::npos || line.find("onCreate") != std::string::npos) {
