@@ -93,6 +93,7 @@ public:
 
     std::unordered_map<AHardwareBuffer*, FinalCachedImage> ringBufferCache;
     std::mutex poolMutex;
+    std::vector<VkImageView> recentImageViews;
 
     bool initialized = false;
     PFN_vkWaitSemaphores pfnVkWaitSemaphores = nullptr;
@@ -521,8 +522,13 @@ Java_com_my_newproject_truesingularityclass_nativeExecuteZeroCopyPipeline(
         imgDesc[0].imageLayout = VK_IMAGE_LAYOUT_GENERAL;
         imgDesc[1].imageView = temporalView;
         imgDesc[1].imageLayout = VK_IMAGE_LAYOUT_GENERAL;
-        imgDesc[2].imageView = cachedImg.vkImageView; // [HARDCORE FIX]: Routing through target 5-layer ring view configuration
-        imgDesc[2].imageLayout = VK_IMAGE_LAYOUT_GENERAL;
+        g_finalEngine->recentImageViews.push_back(cachedImg.vkImageView);
+if (g_finalEngine->recentImageViews.size() > 5) {
+    g_finalEngine->recentImageViews.erase(g_finalEngine->recentImageViews.begin());
+}
+
+        imgDesc[2].imageView = g_finalEngine->recentImageViews.back();
+imgDesc[2].imageLayout = VK_IMAGE_LAYOUT_GENERAL;
 
         VkWriteDescriptorSet writes[3] = {};
         for (int i = 0; i < 3; ++i) {
