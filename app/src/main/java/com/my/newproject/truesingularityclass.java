@@ -58,6 +58,8 @@ public class truesingularityclass {
     public native String nativeExecuteMasterOmniPipeline(float zoomVal, float temperatureVal);
     public native void nativeUpdateViewMatrix(float[] matrix);
     public native void nativeDestroyMasterEngine();
+    public native void nativeInitWindow(Surface surface);
+    public native void nativeDestroyWindow();
     public static ArrayList<HashMap<String, Object>> inAppGalleryData = new ArrayList<>();
  
     private Context context;
