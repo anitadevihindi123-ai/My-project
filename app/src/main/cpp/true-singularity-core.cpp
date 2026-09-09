@@ -96,6 +96,12 @@ public:
     std::unordered_map<AHardwareBuffer*, FinalCachedImage> ringBufferCache;
     std::mutex poolMutex;
     std::vector<VkImageView> recentImageViews;
+  ANativeWindow* nativeWindow = nullptr;
+VkSurfaceKHR surface = VK_NULL_HANDLE;
+VkSwapchainKHR swapchain = VK_NULL_HANDLE;
+std::vector<VkImage> swapchainImages;
+std::vector<VkImageView> swapchainImageViews;
+uint32_t swapchainImageCount = 0;
 
     bool initialized = false;
     PFN_vkWaitSemaphores pfnVkWaitSemaphores = nullptr;
