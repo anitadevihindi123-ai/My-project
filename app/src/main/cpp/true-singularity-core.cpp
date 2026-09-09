@@ -706,22 +706,3 @@ Java_com_my_newproject_truesingularityclass_nativeProcessDirectPixelBuffer(
     // [DIRECT PIXEL BUFFER]: AHardwareBuffer का उपयोग करके पिक्सेल प्रोसेसिंग लॉजिक यहाँ लिखें
 }
 
-extern "C" JNIEXPORT void JNICALL
-Java_com_my_newproject_truesingularityclass_nativeProcessAiEnhancement(
-        JNIEnv *env, jclass clazz, jobject hardwareBufferObj, jstring outputPathObj) {
-    if (!hardwareBufferObj || !g_finalEngine || !g_finalEngine->initialized) return;
-
-    static auto fromHb = reinterpret_cast<struct AHardwareBuffer*(*)(JNIEnv*, jobject)>(
-        dlsym(dlopen("libandroid.so", RTLD_LAZY), "AHardwareBuffer_fromHardwareBuffer")
-    );
-    AHardwareBuffer* hb = fromHb ? fromHb(env, hardwareBufferObj) : nullptr;
-    if (!hb) return;
-
-    const char* outputPath = outputPathObj ? env->GetStringUTFChars(outputPathObj, nullptr) : nullptr;
-
-    // [AI ENHANCEMENT]: AHardwareBuffer और output path का उपयोग करके प्रोसेसिंग लॉजिक यहाँ लिखें
-
-    if (outputPath) {
-        env->ReleaseStringUTFChars(outputPathObj, outputPath);
-    }
-}
