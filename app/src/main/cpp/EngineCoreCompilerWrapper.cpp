@@ -15,7 +15,7 @@ void enforce_system_halt(const std::string& layer, const std::string& error_msg,
     std::exit(666); // तुरंत सिस्टम क्रैश, कोई माफी नहीं
 }
 
-// 1. पूरी C++ और हेडर फाइलों की डीप स्कैनिंग
+// 1. स्मार्ट स्कोप और कॉन्टेक्स्ट-अवेयर C++ स्कैनर (जो इनिशियलाइजेशन और रनटाइम लूप में फर्क समझता है)
 void scan_native_sources(const fs::path& root_dir) {
     for (auto const& dir_entry : fs::recursive_directory_iterator(root_dir)) {
         if (dir_entry.is_regular_file()) {
@@ -24,13 +24,55 @@ void scan_native_sources(const fs::path& root_dir) {
                 std::ifstream file(dir_entry.path());
                 std::string line;
                 int line_num = 0;
+                
+                int brace_depth = 0;
+                std::string current_function = "";
+                bool inside_hot_loop = false;
+
                 while (std::getline(file, line)) {
                     line_num++;
-                    // हीप एलोकेशन या अनसेफ पॉइंटर चेक्स
-                    if (line.find("malloc(") != std::string::npos || line.find("new ") != std::string::npos) {
-                        // चेक करो कि क्या यह हॉट लूप या फ्रेम प्रोसेसिंग के अंदर है
-                        enforce_system_halt("NATIVE_CPP", "Dynamic heap allocation inside execution path at line " + std::to_string(line_num), dir_entry.path().string());
+
+                    // ब्रेस डेप्थ और स्कोप ट्रैक करो
+                    for (char c : line) {
+                        if (c == '{') brace_depth++;
+                        if (c == '}') {
+                            brace_depth--;
+                            if (brace_depth <= 0) {
+                                current_function = "";
+                                inside_hot_loop = false;
+                            }
+                        }
                     }
+
+                    // फंक्शन की पहचान
+                    if (line.find("void ") != std::string::npos || line.find("int ") != std::string::npos || 
+                        line.find("JNIEXPORT") != std::string::npos || line.find("extern \"C\"") != std::string::npos) {
+                        current_function = line;
+                    }
+
+                    // हॉट लूप / फ्रेम लूप की पहचान
+                    if (line.find("while(") != std::string::npos || line.find("for(") != std::string::npos || 
+                        line.find("render") != std::string::npos || line.find("update") != std::string::npos) {
+                        inside_hot_loop = true;
+                    }
+
+                    // चेक करो क्या यह स्टार्टअप/इनिशियलाइजेशन फंक्शन है
+                    bool is_init_func = (current_function.find("Init") != std::string::npos || 
+                                           current_function.find("constructor") != std::string::npos ||
+                                           current_function.find("onCreate") != std::string::npos);
+
+                    // हीप एलोकेशन चेक: स्टार्टअप पर एलाऊ है, लेकिन हॉट लूप या रनटाइम पाथ पर सख्त मना है
+                    if (line.find("malloc(") != std::string::npos || line.find("new ") != std::string::npos) {
+                        if (!is_init_func || inside_hot_loop) {
+                            enforce_system_halt("NATIVE_CPP", "Illegal dynamic heap allocation inside run-time/hot path at line " + std::to_string(line_num), dir_entry.path().string());
+                        }
+                    }
+
+                    // थ्रेड रेस कंडीशन या अनसेफ सिंक्रोनाइज़ेशन चेक
+                    if (line.find("std::thread") != std::string::npos && line.find("detach") != std::string::npos) {
+                        enforce_system_halt("NATIVE_CPP", "Unsafe detached thread detected—risk of race condition/dangling pointer at line " + std::to_string(line_num), dir_entry.path().string());
+                    }
+
                     // खाली स्टब या अधूरे कोड की जाँच
                     if (line.find("TODO") != std::string::npos || line.find("{ }") != std::string::npos) {
                         enforce_system_halt("NATIVE_CPP", "Incomplete stub or TODO found at line " + std::to_string(line_num), dir_entry.path().string());
@@ -89,11 +131,11 @@ void scan_shader_pipelines(const fs::path& shader_dir) {
 }
 
 int main(int argc, char* argv[]) {
-    std::cout << "[ENGINE MASTER GUARD] Initializing full-project zero-tolerance scan...\n";
+    std::cout << "[ENGINE MASTER GUARD] Initializing full-project smart scope-aware zero-tolerance scan...\n";
     
     fs::path project_root = (argc > 1) ? argv[1] : ".";
 
-    // पूरे प्रोजेक्ट के हर कोने की चीरफाड़ एक साथ
+    // पूरे प्रोजेक्ट के हर कोने की स्मार्ट चीरफाड़
     scan_native_sources(project_root);
     scan_managed_sources(project_root);
     scan_shader_pipelines(project_root / "shaders");
