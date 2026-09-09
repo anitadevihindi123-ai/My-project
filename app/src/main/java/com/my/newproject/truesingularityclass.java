@@ -84,6 +84,8 @@ public class truesingularityclass {
     private long recordStartTime = 0;
     private long globalFrameIndex = 0;
     private byte[] latestJpegBytes = null;
+    private volatile boolean isShutterTriggered = false;
+    private final ArrayList<Object> captureQueue = new ArrayList<>();
 
     private HandlerThread workerThread;
     private Handler workerHandler;
