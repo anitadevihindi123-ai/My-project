@@ -258,6 +258,12 @@ public class truesingularityclass {
         @Override
         public void onClick(View v) {
             if (!recordingMode) {
+                // शटर दबते ही स्टैकिंग और फ्लैग एक्टिव करना
+                synchronized (captureQueue) {
+                    captureQueue.clear();
+                    isShutterTriggered = true;
+                }
+
                 workerHandler.post(new Runnable() {
                     @Override
                     public void run() {
@@ -282,7 +288,7 @@ public class truesingularityclass {
                             photoMap.put("uri", photoFile.getAbsolutePath());
                             
                             inAppGalleryData.add(0, photoMap);
-                                                        try {
+                            try {
                                 AppDatabase db = AppDatabase.getDatabase(context);
                                 ImageEntity entity = new ImageEntity();
                                 entity.filePath = photoFile.getAbsolutePath();
@@ -296,7 +302,7 @@ public class truesingularityclass {
                             uiHandler.post(new Runnable() {
                                 @Override
                                 public void run() {
-                                    Toast.makeText(context, "🔥 असली फोटो इन-ऐप गैलरी में लॉक!", Toast.LENGTH_SHORT).show();
+                                    Toast.makeText(context, "📸 मल्टी-फ्रेम स्टैकिंग शुरू & फोटो लॉक!", Toast.LENGTH_SHORT).show();
                                 }
                             });
                         } catch (Exception e) {
@@ -314,6 +320,7 @@ public class truesingularityclass {
         }
     });
 }
+
 
         // [NAVIGATION ENGINE] - Trigger In-App Gallery & Cinematic Media Suite
         if (btnGallery != null) {
