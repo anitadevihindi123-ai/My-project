@@ -788,3 +788,17 @@ Java_com_my_newproject_truesingularityclass_nativeProcessDirectPixelBuffer(
     // [DIRECT PIXEL BUFFER]: AHardwareBuffer का उपयोग करके पिक्सेल प्रोसेसिंग लॉजिक यहाँ लिखें
 }
 
+extern "C" JNIEXPORT void JNICALL
+Java_com_my_newproject_truesingularityclass_nativeInitWindow(
+        JNIEnv *env, jobject thiz, jobject surfaceObj) {
+    if (!g_finalEngine) return;
+    ANativeWindow* window = ANativeWindow_fromSurface(env, surfaceObj);
+    g_finalEngine->initWindow(window);
+}
+
+extern "C" JNIEXPORT void JNICALL
+Java_com_my_newproject_truesingularityclass_nativeDestroyWindow(
+        JNIEnv *env, jobject thiz) {
+    if (!g_finalEngine) return;
+    g_finalEngine->destroyWindow();
+}
