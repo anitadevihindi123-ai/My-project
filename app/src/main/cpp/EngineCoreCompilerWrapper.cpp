@@ -12,10 +12,10 @@ void enforce_system_halt(const std::string& layer, const std::string& error_msg,
               << "-> File: " << file_path << "\n"
               << "-> Reason: " << error_msg << "\n"
               << "-> Status: Entire project build permanently aborted. Zero tolerance.\n";
-    std::exit(666); // तुरंत सिस्टम क्रैश, कोई माफी नहीं
+    std::exit(666); 
 }
 
-// 1. स्मार्ट स्कोप और कॉन्टेक्स्ट-अवेयर C++ स्कैनर (जो इनिशियलाइजेशन और रनटाइम लूप में फर्क समझता है)
+// 1. स्मार्ट स्कोप और मल्टी-लाइन कॉन्टेक्स्ट-अवेयर C++ स्कैनर
 void scan_native_sources(const fs::path& root_dir) {
     for (auto const& dir_entry : fs::recursive_directory_iterator(root_dir)) {
         if (dir_entry.is_regular_file()) {
@@ -44,10 +44,11 @@ void scan_native_sources(const fs::path& root_dir) {
                         }
                     }
 
-                    // फंक्शन की पहचान
+                    // मल्टी-लाइन या सिंगल-लाइन फंक्शन सिग्नेचर को कलेक्ट करें (ताकि JNI नाम न छूटे)
                     if (line.find("void ") != std::string::npos || line.find("int ") != std::string::npos || 
-                        line.find("JNIEXPORT") != std::string::npos || line.find("extern \"C\"") != std::string::npos) {
-                        current_function = line;
+                        line.find("JNIEXPORT") != std::string::npos || line.find("extern \"C\"") != std::string::npos ||
+                        line.find("nativeInit") != std::string::npos || line.find("onCreate") != std::string::npos) {
+                        current_function += " " + line;
                     }
 
                     // हॉट लूप / फ्रेम लूप की पहचान
@@ -83,7 +84,7 @@ void scan_native_sources(const fs::path& root_dir) {
     }
 }
 
-// 2. पूरे प्रोजेक्ट की Java और Kotlin फाइलों की स्कैनिंग (GC Pauses और Thread Locks रोकने के लिए)
+// 2. पूरे प्रोजेक्ट की Java और Kotlin फाइलों की स्कैनिंग
 void scan_managed_sources(const fs::path& root_dir) {
     for (auto const& dir_entry : fs::recursive_directory_iterator(root_dir)) {
         if (dir_entry.is_regular_file()) {
@@ -113,7 +114,7 @@ void scan_managed_sources(const fs::path& root_dir) {
     }
 }
 
-// 3. Vulkan Shaders (GLSL/SPIR-V) की बाइनरी और लेआउट सिंक्रोनाइज़ेशन जाँच
+// 3. Vulkan Shaders की जाँच
 void scan_shader_pipelines(const fs::path& shader_dir) {
     if (!fs::exists(shader_dir)) return;
     for (auto const& dir_entry : fs::recursive_directory_iterator(shader_dir)) {
@@ -131,15 +132,14 @@ void scan_shader_pipelines(const fs::path& shader_dir) {
 }
 
 int main(int argc, char* argv[]) {
-    std::cout << "[ENGINE MASTER GUARD] Initializing full-project smart scope-aware zero-tolerance scan...\n";
+    std::cout << "[ENGINE MASTER GUARD] Initializing full-project multi-line scope-aware scan...\n";
     
     fs::path project_root = (argc > 1) ? argv[1] : ".";
 
-    // पूरे प्रोजेक्ट के हर कोने की स्मार्ट चीरफाड़
     scan_native_sources(project_root);
     scan_managed_sources(project_root);
     scan_shader_pipelines(project_root / "shaders");
 
-    std::cout << "[ENGINE MASTER GUARD SUCCESS] Absolute zero errors, stubs, or leaks found. Proceeding to compilation.\n";
+    std::cout << "[ENGINE MASTER GUARD SUCCESS] Absolute zero errors found. Proceeding to compilation.\n";
     return 0;
 }
