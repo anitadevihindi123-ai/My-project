@@ -8,6 +8,8 @@
 #include <cstdio>
 #include <dlfcn.h>
 #include <vulkan/vulkan.h>
+#include <android/native_window.h>
+#include <android/native_window_jni.h>
 #include <vulkan/vulkan_android.h>
 #include <android/hardware_buffer.h>
 #include <android/hardware_buffer_jni.h>
