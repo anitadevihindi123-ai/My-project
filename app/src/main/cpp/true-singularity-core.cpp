@@ -7,6 +7,8 @@
 #include <mutex>
 #include <cstdio>
 #include <dlfcn.h>
+#include <android/log.h>
+#include <stdexcept>
 #include <vulkan/vulkan.h>
 #include <android/native_window.h>
 #include <android/native_window_jni.h>
