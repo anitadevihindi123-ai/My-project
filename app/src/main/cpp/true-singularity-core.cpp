@@ -161,6 +161,8 @@ VkSwapchainKHR swapchain = VK_NULL_HANDLE;
 std::vector<VkImage> swapchainImages;
 std::vector<VkImageView> swapchainImageViews;
 uint32_t swapchainImageCount = 0;
+    mutable std::shared_mutex surfaceMutex;
+    std::atomic<bool> isSurfaceActive{false};
 
     bool initialized = false;
     PFN_vkWaitSemaphores pfnVkWaitSemaphores = nullptr;
