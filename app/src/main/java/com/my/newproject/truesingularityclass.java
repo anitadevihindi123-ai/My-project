@@ -322,8 +322,11 @@ private android.hardware.SensorEventListener gyroListener;
             if (!recordingMode) {
                 // शटर दबते ही स्टैकिंग और फ्लैग एक्टिव करना
                 captureQueue.clear();
-isShutterTriggered = true;
-
+                isShutterTriggered = true;
+            }
+        }
+    });
+}
 
                 workerHandler.post(new Runnable() {
                     @Override
