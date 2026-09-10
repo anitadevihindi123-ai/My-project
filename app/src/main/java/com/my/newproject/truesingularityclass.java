@@ -71,7 +71,10 @@ public class truesingularityclass {
     private String activeCameraId;
     private boolean isBackSensor = false;
     private boolean isTorchActive = false;
-    
+    private android.hardware.SensorManager sensorManager;
+private android.hardware.Sensor gyroSensor;
+private android.hardware.SensorEventListener gyroListener;
+
     private SurfaceView previewSurfaceView;
     private TextView lblTimer, lblPhoto, lblVideo;
     private ImageView btnGallery, btnShutter, btnFlip, btnFlash;
