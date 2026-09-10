@@ -399,7 +399,7 @@ private android.hardware.SensorEventListener gyroListener;
                 }
             });
         }
-     
+      }
          
     public void flipCameraAction() {
         if (isCapturingStream && recordingMode) return;
