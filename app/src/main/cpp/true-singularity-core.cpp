@@ -349,7 +349,7 @@ if (thermalFd >= 0) {
 
         initialized = true;
     }
-};
+
 void initWindow(ANativeWindow* window) {
     nativeWindow = window;
     if (!instance || !physicalDevice || !device) return;
@@ -415,9 +415,9 @@ void destroyWindow() {
     if (nativeWindow) {
         ANativeWindow_release(nativeWindow);
         nativeWindow = nullptr;
-    }
-}
-
+      }
+   }
+};
 static PureMetalEngine* g_finalEngine = nullptr;
 
 extern "C" JNIEXPORT void JNICALL
