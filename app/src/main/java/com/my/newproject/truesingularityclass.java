@@ -579,7 +579,7 @@ private android.hardware.SensorEventListener gyroListener;
         } catch (Exception e) {
             e.printStackTrace();
         }
-    }
+    
  
 
             if (ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) {
