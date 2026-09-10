@@ -109,6 +109,100 @@ uint32_t swapchainImageCount = 0;
 std::atomic<bool> thermalRunning{true};
 int thermalFd = -1;
 std::thread thermalThread;
+    VkImageView GetOrCreateImageViewFromAHB(AHardwareBuffer* ahb) {
+        auto it = ringBufferCache.find(ahb);
+        if (it != ringBufferCache.end() && it->second.vkImageView != VK_NULL_HANDLE) {
+            return it->second.vkImageView;
+        }
+
+        AHardwareBuffer_Desc desc;
+        AHardwareBuffer_describe(ahb, &desc);
+
+        FinalCachedImage newImg = {};
+        AHardwareBuffer_acquire(ahb);
+
+        VkExternalMemoryImageCreateInfo extInfo = {};
+        extInfo.sType = VK_STRUCTURE_TYPE_EXTERNAL_MEMORY_IMAGE_CREATE_INFO;
+        extInfo.handleTypes = VK_EXTERNAL_MEMORY_HANDLE_TYPE_ANDROID_HARDWARE_BUFFER_BIT_ANDROID;
+
+        VkImageCreateInfo imageInfo = {};
+        imageInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+        imageInfo.pNext = &extInfo;
+        imageInfo.imageType = VK_IMAGE_TYPE_2D;
+        imageInfo.format = VK_FORMAT_R8G8B8A8_UNORM;
+        imageInfo.extent.width = desc.width;
+        imageInfo.extent.height = desc.height;
+        imageInfo.extent.depth = 1;
+        imageInfo.mipLevels = 1;
+        imageInfo.arrayLayers = 1;
+        imageInfo.samples = VK_SAMPLE_COUNT_1_BIT;
+        imageInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
+        imageInfo.usage = VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
+        imageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+        imageInfo.initialLayout = VK_IMAGE_LAYOUT_GENERAL;
+
+        if (vkCreateImage(device, &imageInfo, nullptr, &newImg.vkImage) == VK_SUCCESS) {
+            auto fpGetProps = reinterpret_cast<PFN_vkGetAndroidHardwareBufferPropertiesANDROID>(
+                vkGetDeviceProcAddr(device, "vkGetAndroidHardwareBufferPropertiesANDROID")
+            );
+
+            if (fpGetProps) {
+                VkAndroidHardwareBufferPropertiesANDROID ahbProps = {};
+                ahbProps.sType = VK_STRUCTURE_TYPE_ANDROID_HARDWARE_BUFFER_PROPERTIES_ANDROID;
+
+                if (fpGetProps(device, ahb, &ahbProps) == VK_SUCCESS) {
+                    VkImportAndroidHardwareBufferInfoANDROID importHb = {};
+                    importHb.sType = VK_STRUCTURE_TYPE_IMPORT_ANDROID_HARDWARE_BUFFER_INFO_ANDROID;
+                    importHb.buffer = ahb;
+
+                    VkMemoryDedicatedAllocateInfo dedicatedAllocInfo = {};
+                    dedicatedAllocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_DEDICATED_ALLOCATE_INFO;
+                    dedicatedAllocInfo.pNext = &importHb;
+                    dedicatedAllocInfo.image = newImg.vkImage;
+
+                    VkPhysicalDeviceMemoryProperties memProps;
+                    vkGetPhysicalDeviceMemoryProperties(physicalDevice, &memProps);
+
+                    uint32_t memTypeIdx = 0;
+                    for (uint32_t i = 0; i < memProps.memoryTypeCount; i++) {
+                        if ((ahbProps.memoryTypeBits & (1 << i))) {
+                            memTypeIdx = i;
+                            break;
+                        }
+                    }
+
+                    VkMemoryAllocateInfo allocInfo = {};
+                    allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+                    allocInfo.pNext = &dedicatedAllocInfo;
+                    allocInfo.allocationSize = ahbProps.allocationSize;
+                    allocInfo.memoryTypeIndex = memTypeIdx;
+
+                    if (vkAllocateMemory(device, &allocInfo, nullptr, &newImg.vkMemory) == VK_SUCCESS) {
+                        vkBindImageMemory(device, newImg.vkImage, newImg.vkMemory, 0);
+
+                        VkImageViewCreateInfo viewInfo = {};
+                        viewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+                        viewInfo.image = newImg.vkImage;
+                        viewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+                        viewInfo.format = VK_FORMAT_R8G8B8A8_UNORM;
+                        viewInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+                        viewInfo.subresourceRange.levelCount = 1;
+                        viewInfo.subresourceRange.layerCount = 1;
+
+                        vkCreateImageView(device, &viewInfo, nullptr, &newImg.vkImageView);
+                        newImg.width = desc.width;
+                        newImg.height = desc.height;
+                        newImg.isAllocated = true;
+
+                        std::lock_guard<std::mutex> lock(poolMutex);
+                        ringBufferCache[ahb] = newImg;
+                        return newImg.vkImageView;
+                    }
+                }
+            }
+        }
+        return VK_NULL_HANDLE;
+    }
 
     ~PureMetalEngine() {
        thermalRunning = false;
