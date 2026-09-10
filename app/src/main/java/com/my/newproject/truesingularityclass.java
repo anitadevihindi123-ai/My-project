@@ -186,7 +186,7 @@ private android.hardware.SensorEventListener gyroListener;
                 }
             });
         }
-    }
+    
 
 
              if (zoomTrackLayout != null) {
