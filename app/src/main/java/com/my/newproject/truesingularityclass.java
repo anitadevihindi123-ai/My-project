@@ -462,7 +462,7 @@ private android.hardware.SensorEventListener gyroListener;
     }
 }
 
-        private void startCameraPipeline() {
+           private void startCameraPipeline() {
         try {
             if (isCapturingStream && recordingMode) return;
             cameraManager = (CameraManager) context.getSystemService(Context.CAMERA_SERVICE);
@@ -470,7 +470,6 @@ private android.hardware.SensorEventListener gyroListener;
             if (cameraIdList.length == 0) return;
             activeCameraId = cameraIdList[isBackSensor ? 0 : (cameraIdList.length > 1 ? 1 : 0)];
             
-            // [STRETCH FIX]: डिवाइस के हिसाब से आटोमेटिक बेस्ट रेजोल्यूशन और आस्पेक्ट रेशियो सेट करना
             int targetWidth = 1920;
             int targetHeight = 1080;
             try {
@@ -479,7 +478,6 @@ private android.hardware.SensorEventListener gyroListener;
                 if (map != null) {
                     android.util.Size[] choices = map.getOutputSizes(ImageFormat.YUV_420_888);
                     if (choices != null && choices.length > 0) {
-                        // सबसे नजदीक और साफ एचडी रेजोल्यूशन खुद चुन लेगा ताकि स्ट्रेच न हो
                         targetWidth = choices[0].getWidth();
                         targetHeight = choices[0].getHeight();
                     }
@@ -488,63 +486,101 @@ private android.hardware.SensorEventListener gyroListener;
                 e.printStackTrace();
             }
 
-imageReader.setOnImageAvailableListener(new ImageReader.OnImageAvailableListener() {
-    @Override
-    public void onImageAvailable(ImageReader reader) {
-        Image image = reader.acquireLatestImage();
-        if (image == null) return;
+            // [CRITICAL FIX 1]: यहाँ imageReader को इंस्टैंशिएट करना जरूरी है
+            imageReader = ImageReader.newInstance(targetWidth, targetHeight, ImageFormat.YUV_420_888, 5);
 
-        try {
-            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
-                android.hardware.HardwareBuffer hwBuffer = image.getHardwareBuffer();
-                if (hwBuffer != null) {
-                    globalFrameIndex++;
+            imageReader.setOnImageAvailableListener(new ImageReader.OnImageAvailableListener() {
+                @Override
+                public void onImageAvailable(ImageReader reader) {
+                    Image image = reader.acquireLatestImage();
+                    if (image == null) return;
 
-                    // 1. सामान्य प्रीव्यू हमेशा चलता रहेगा (मक्खन की तरह स्मूथ)
-                    nativeExecuteZeroCopyPipeline(hwBuffer, singularityZoom, globalFrameIndex);
+                    try {
+                        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
+                            android.hardware.HardwareBuffer hwBuffer = image.getHardwareBuffer();
+                            if (hwBuffer != null) {
+                                globalFrameIndex++;
 
-                    // 2. शटर क्लिक होने के बाद हर फ्रेम पर यह बफर स्टैक होगा
-                    if (isShutterTriggered) {
-                        synchronized (captureQueue) {
-                            captureQueue.add(hwBuffer);
-                            
-                            // मान लीजिये आपको एक साथ स्टैकिंग के लिए 5 लगातार फ्रेम्स चाहिए
-                            if (captureQueue.size() >= 5) {
-                                Object[] buffersArray = captureQueue.toArray(new Object[0]);
-                                
-                                // C++ नेटिव मल्टी-फ्रेम रॉ स्टैकिंग इंजन को भेजना
-                                nativeExecuteMultiFrameRawStacking(buffersArray);
-                                
-                                // उपयोग के बाद पुराने बफर्स को सुरक्षित बंद करना
-                                for (Object buf : captureQueue) {
-                                    if (buf instanceof android.hardware.HardwareBuffer) {
-                                        ((android.hardware.HardwareBuffer) buf).close();
+                                nativeExecuteZeroCopyPipeline(hwBuffer, singularityZoom, globalFrameIndex);
+
+                                // [CRITICAL FIX 2]: C++ Engine Guard के अनुकूल बिना 'synchronized' के लॉक-फ्री स्टैकिंग
+                                if (isShutterTriggered) {
+                                    captureQueue.add(hwBuffer);
+                                    
+                                    if (captureQueue.size() >= 5) {
+                                        Object[] buffersArray = captureQueue.toArray(new Object[0]);
+                                        nativeExecuteMultiFrameRawStacking(buffersArray);
+                                        
+                                        for (Object buf : captureQueue) {
+                                            if (buf instanceof android.hardware.HardwareBuffer) {
+                                                ((android.hardware.HardwareBuffer) buf).close();
+                                            }
+                                        }
+                                        captureQueue.clear();
+                                        isShutterTriggered = false;
+                                        
+                                        uiHandler.post(new Runnable() {
+                                            @Override
+                                            public void run() {
+                                                Toast.makeText(context, "✨ रॉ स्टैकिंग कम्पलीट!", Toast.LENGTH_SHORT).show();
+                                            }
+                                        });
                                     }
                                 }
-                                captureQueue.clear();
-                                
-                                // एक बार स्टैकिंग पूरी होने के बाद फ्लैग बंद कर दें (या चाहें तो लगातार चालू रख सकते हैं)
-                                isShutterTriggered = false;
-                                
-                                uiHandler.post(new Runnable() {
-                                    @Override
-                                    public void run() {
-                                        Toast.makeText(context, "✨ रॉ स्टैकिंग कम्पलीट!", Toast.LENGTH_SHORT).show();
-                                    }
-                                });
                             }
                         }
+                    } catch (Exception e) {
+                        e.printStackTrace();
+                    } finally {
+                        image.close();
                     }
                 }
+            }, workerHandler);
+
+            if (ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) {
+                cameraManager.openCamera(activeCameraId, new CameraDevice.StateCallback() {
+                    @Override
+                    public void onOpened(CameraDevice camera) {
+                        singularityCamera = camera;
+                        try {
+                            Surface previewSurface = previewSurfaceView.getHolder().getSurface();
+                            if (previewSurface != null && previewSurface.isValid()) {
+                                Surface readerSurface = imageReader.getSurface();
+                                
+                                previewRequestBuilder = camera.createCaptureRequest(CameraDevice.TEMPLATE_PREVIEW);
+                                previewRequestBuilder.addTarget(previewSurface);
+                                previewRequestBuilder.addTarget(readerSurface);
+                                
+                                camera.createCaptureSession(Arrays.asList(previewSurface, readerSurface), new CameraCaptureSession.StateCallback() {
+                                    @Override
+                                    public void onConfigured(CameraCaptureSession session) {
+                                        singularitySession = session;
+                                        try {
+                                            previewRequestBuilder.set(CaptureRequest.CONTROL_MODE, CameraMetadata.CONTROL_MODE_AUTO);
+                                            updateCameraZoomOnTheFly(singularityZoom);
+                                        } catch (Exception e) {
+                                            e.printStackTrace();
+                                        }
+                                    }
+                                    @Override
+                                    public void onConfigureFailed(CameraCaptureSession session) {}
+                                }, workerHandler);
+                            }
+                        } catch (Exception e) {
+                            e.printStackTrace();
+                        }
+                    }
+                    @Override
+                    public void onDisconnected(CameraDevice camera) { camera.close(); singularityCamera = null; }
+                    @Override
+                    public void onError(CameraDevice camera, int error) { camera.close(); singularityCamera = null; }
+                }, workerHandler);
             }
         } catch (Exception e) {
             e.printStackTrace();
-        } finally {
-            image.close();
         }
     }
-}, workerHandler);
-
+ 
 
             if (ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) {
                 cameraManager.openCamera(activeCameraId, new CameraDevice.StateCallback() {
