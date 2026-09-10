@@ -315,74 +315,71 @@ private android.hardware.SensorEventListener gyroListener;
             });
         }
 
-           if (btnShutter != null) {
-    btnShutter.setOnClickListener(new View.OnClickListener() {
-        @Override
-        public void onClick(View v) {
-            if (!recordingMode) {
-                // शटर दबते ही स्टैकिंग और फ्लैग एक्टिव करना
-                captureQueue.clear();
-                isShutterTriggered = true;
-            }
-        
-        
-                workerHandler.post(new Runnable() {
-                    @Override
-                    public void run() {
-                        try {
-                            globalFrameIndex++;
-                            File photoFile = new File(context.getFilesDir(), "Singularity_Photo_" + System.currentTimeMillis() + ".jpg");
-                            
-                            if (latestJpegBytes != null) {
-                                try (FileOutputStream fos = new FileOutputStream(photoFile)) {
-                                    fos.write(latestJpegBytes);
-                                    fos.flush();
-                                }
-                            } else {
-                                photoFile.createNewFile();
-                            }
+                   if (btnShutter != null) {
+            btnShutter.setOnClickListener(new View.OnClickListener() {
+                @Override
+                public void onClick(View v) {
+                    if (!recordingMode) {
+                        // शटर दबते ही स्टैकिंग और फ्लैग एक्टिव करना
+                        captureQueue.clear();
+                        isShutterTriggered = true;
+                    
+                        workerHandler.post(new Runnable() {
+                            @Override
+                            public void run() {
+                                try {
+                                    globalFrameIndex++;
+                                    File photoFile = new File(context.getFilesDir(), "Singularity_Photo_" + System.currentTimeMillis() + ".jpg");
+                                    
+                                    if (latestJpegBytes != null) {
+                                        try (FileOutputStream fos = new FileOutputStream(photoFile)) {
+                                            fos.write(latestJpegBytes);
+                                            fos.flush();
+                                        }
+                                    } else {
+                                        photoFile.createNewFile();
+                                    }
 
-                            HashMap<String, Object> photoMap = new HashMap<>();
-                            photoMap.put("type", "photo");
-                            photoMap.put("title", "कैप्चर #" + globalFrameIndex);
-                            photoMap.put("timestamp", String.valueOf(System.currentTimeMillis()));
-                            photoMap.put("file_path", photoFile.getAbsolutePath());
-                            photoMap.put("uri", photoFile.getAbsolutePath());
-                            
-                            inAppGalleryData.add(0, photoMap);
-                            try {
-                                AppDatabase db = AppDatabase.getDatabase(context);
-                                ImageEntity entity = new ImageEntity();
-                                entity.filePath = photoFile.getAbsolutePath();
-                                entity.type = "photo";
-                                entity.duration = "";
-                                db.imageDao().insertImage(entity);
-                            } catch (Exception ex) {
-                                ex.printStackTrace();
-                            }
+                                    HashMap<String, Object> photoMap = new HashMap<>();
+                                    photoMap.put("type", "photo");
+                                    photoMap.put("title", "कैप्चर #" + globalFrameIndex);
+                                    photoMap.put("timestamp", String.valueOf(System.currentTimeMillis()));
+                                    photoMap.put("file_path", photoFile.getAbsolutePath());
+                                    photoMap.put("uri", photoFile.getAbsolutePath());
+                                    
+                                    inAppGalleryData.add(0, photoMap);
+                                    try {
+                                        AppDatabase db = AppDatabase.getDatabase(context);
+                                        ImageEntity entity = new ImageEntity();
+                                        entity.filePath = photoFile.getAbsolutePath();
+                                        entity.type = "photo";
+                                        entity.duration = "";
+                                        db.imageDao().insertImage(entity);
+                                    } catch (Exception ex) {
+                                        ex.printStackTrace();
+                                    }
 
-                            uiHandler.post(new Runnable() {
-                                @Override
-                                public void run() {
-                                    Toast.makeText(context, "📸 मल्टी-फ्रेम स्टैकिंग शुरू & फोटो लॉक!", Toast.LENGTH_SHORT).show();
+                                    uiHandler.post(new Runnable() {
+                                        @Override
+                                        public void run() {
+                                            Toast.makeText(context, "📸 मल्टी-फ्रेम स्टैकिंग शुरू & फोटो लॉक!", Toast.LENGTH_SHORT).show();
+                                        }
+                                    });
+                                } catch (Exception e) {
+                                    e.printStackTrace();
                                 }
-                            });
-                        } catch (Exception e) {
-                            e.printStackTrace();
+                            }
+                        });
+                    } else {
+                        if (!isCapturingStream) {
+                            startUltraVideoRecording();
+                        } else {
+                            stopUltraVideoRecording();
                         }
                     }
-                });
-            } else {
-                if (!isCapturingStream) {
-                    startUltraVideoRecording();
-                } else {
-                    stopUltraVideoRecording();
                 }
-            }
+            });
         }
-    });
-}
-
 
         // [NAVIGATION ENGINE] - Trigger In-App Gallery & Cinematic Media Suite
         if (btnGallery != null) {
