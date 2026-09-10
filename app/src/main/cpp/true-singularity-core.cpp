@@ -33,6 +33,58 @@ typedef struct native_handle {
     int numInts;
     int data[0];
 } native_handle_t;
+class AndroidNativeLoader {
+private:
+    void* handle_;
+    bool is_initialized_;
+    std::mutex mutex_;
+    PFN_AHardwareBuffer_fromHardwareBuffer fn_AHardwareBuffer_fromHardwareBuffer_;
+    PFN_AHardwareBuffer_release fn_AHardwareBuffer_release_;
+
+    AndroidNativeLoader() : handle_(nullptr), is_initialized_(false),
+                            fn_AHardwareBuffer_fromHardwareBuffer_(nullptr),
+                            fn_AHardwareBuffer_release_(nullptr) {}
+
+    ~AndroidNativeLoader() {
+        if (handle_) { dlclose(handle_); handle_ = nullptr; }
+    }
+
+public:
+    static AndroidNativeLoader& getInstance() {
+        static AndroidNativeLoader instance;
+        return instance;
+    }
+
+    bool initialize() {
+        std::lock_guard<std::mutex> lock(mutex_);
+        if (is_initialized_) return true;
+        handle_ = dlopen("libandroid.so", RTLD_LAZY | RTLD_LOCAL);
+        if (!handle_) return false;
+        fn_AHardwareBuffer_fromHardwareBuffer_ = reinterpret_cast<PFN_AHardwareBuffer_fromHardwareBuffer>(dlsym(handle_, "AHardwareBuffer_fromHardwareBuffer"));
+        fn_AHardwareBuffer_release_ = reinterpret_cast<PFN_AHardwareBuffer_release>(dlsym(handle_, "AHardwareBuffer_release"));
+        if (!fn_AHardwareBuffer_fromHardwareBuffer_ || !fn_AHardwareBuffer_release_) {
+            dlclose(handle_); handle_ = nullptr; return false;
+        }
+        is_initialized_ = true;
+        return true;
+    }
+
+    AHardwareBuffer* createFromJava(JNIEnv* env, jobject hardwareBuffer) {
+        if (!is_initialized_ || !fn_AHardwareBuffer_fromHardwareBuffer_) {
+            throw std::runtime_error("AndroidNativeLoader not initialized or symbol missing.");
+        }
+        return fn_AHardwareBuffer_fromHardwareBuffer_(env, hardwareBuffer);
+    }
+
+    void releaseBuffer(AHardwareBuffer* buffer) {
+        if (is_initialized_ && fn_AHardwareBuffer_release_ && buffer) {
+            fn_AHardwareBuffer_release_(buffer);
+        }
+    }
+
+    AndroidNativeLoader(const AndroidNativeLoader&) = delete;
+    AndroidNativeLoader& operator=(const AndroidNativeLoader&) = delete;
+};
 
 extern "C" {
     const native_handle_t* AHardwareBuffer_getNativeHandle(const AHardwareBuffer* buffer);
