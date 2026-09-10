@@ -125,30 +125,69 @@ private android.hardware.SensorEventListener gyroListener;
         initEngineCore();
     }
 
-    private void initEngineCore() {
+        private void initEngineCore() {
         initializeEnvironment();
         nativeInitMasterEngine(System.nanoTime(), 1920, 1080);
         nativeInitAssetManager(context.getAssets());
-    sensorManager = (android.hardware.SensorManager) context.getSystemService(Context.SENSOR_SERVICE);
-if (sensorManager != null) {
-    gyroSensor = sensorManager.getDefaultSensor(android.hardware.Sensor.TYPE_GYROSCOPE);
-    if (gyroSensor != null) {
-        gyroListener = new android.hardware.SensorEventListener() {
-            @Override
-            public void onSensorChanged(android.hardware.SensorEvent event) {
-                if (event.sensor.getType() == android.hardware.Sensor.TYPE_GYROSCOPE) {
-                    float gyroX = event.values[0];
-                    float gyroY = event.values[1];
-                    float gyroZ = event.values[2];
-                    nativeApplyGyroStabilization(gyroX, gyroY, gyroZ);
-                }
+        
+        sensorManager = (android.hardware.SensorManager) context.getSystemService(Context.SENSOR_SERVICE);
+        if (sensorManager != null) {
+            gyroSensor = sensorManager.getDefaultSensor(android.hardware.Sensor.TYPE_GYROSCOPE);
+            if (gyroSensor != null) {
+                gyroListener = new android.hardware.SensorEventListener() {
+                    @Override
+                    public void onSensorChanged(android.hardware.SensorEvent event) {
+                        if (event.sensor.getType() == android.hardware.Sensor.TYPE_GYROSCOPE) {
+                            float gyroX = event.values[0];
+                            float gyroY = event.values[1];
+                            float gyroZ = event.values[2];
+                            nativeApplyGyroStabilization(gyroX, gyroY, gyroZ);
+                        }
+                    }
+                    @Override
+                    public void onAccuracyChanged(android.hardware.Sensor sensor, int accuracy) {}
+                };
+                sensorManager.registerListener(gyroListener, gyroSensor, android.hardware.SensorManager.SENSOR_DELAY_FASTEST);
             }
-            @Override
-            public void onAccuracyChanged(android.hardware.Sensor sensor, int accuracy) {}
-        };
-        sensorManager.registerListener(gyroListener, gyroSensor, android.hardware.SensorManager.SENSOR_DELAY_FASTEST);
+        }
+
+        if (previewSurfaceView != null && previewSurfaceView.getHolder() != null) {
+            previewSurfaceView.getHolder().addCallback(new SurfaceHolder.Callback() {
+                @Override
+                public void surfaceCreated(SurfaceHolder holder) {
+                    // यहाँ नेटिव विंडो पास करें
+                    nativeInitWindow(holder.getSurface());
+                    workerHandler.post(new Runnable() {
+                        @Override
+                        public void run() {
+                            startCameraPipeline();
+                        }
+                    });
+                }
+
+                @Override
+                public void surfaceChanged(SurfaceHolder holder, int format, int width, int height) {}
+
+                @Override
+                public void surfaceDestroyed(SurfaceHolder holder) {
+                    nativeDestroyWindow();
+                    try {
+                        if (singularitySession != null) {
+                            singularitySession.close();
+                            singularitySession = null;
+                        }
+                        if (singularityCamera != null) {
+                            singularityCamera.close();
+                            singularityCamera = null;
+                        }
+                    } catch (Exception e) {
+                        e.printStackTrace();
+                    }
+                }
+            });
+        }
     }
-}
+
 
              if (zoomTrackLayout != null) {
             indicatorView = new View(context);
@@ -361,40 +400,7 @@ if (sensorManager != null) {
             });
         }
 
-         previewSurfaceView.getHolder().addCallback(new SurfaceHolder.Callback() {
-    @Override
-    public void surfaceCreated(SurfaceHolder holder) {
-        // यहाँ नेटिव विंडो पास करें
-        nativeInitWindow(holder.getSurface());
-        workerHandler.post(new Runnable() {
-            @Override
-            public void run() {
-                startCameraPipeline();
-            }
-        });
-    }
-
-    @Override
-    public void surfaceChanged(SurfaceHolder holder, int format, int width, int height) {}
-
-    @Override
-    public void surfaceDestroyed(SurfaceHolder holder) {
-        nativeDestroyWindow();
-        try {
-            if (singularitySession != null) {
-                singularitySession.close();
-                singularitySession = null;
-            }
-            if (singularityCamera != null) {
-                singularityCamera.close();
-                singularityCamera = null;
-            }
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-    }
-});
-
+         
     public void flipCameraAction() {
         if (isCapturingStream && recordingMode) return;
         isBackSensor = !isBackSensor;
