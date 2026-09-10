@@ -324,10 +324,8 @@ private android.hardware.SensorEventListener gyroListener;
                 captureQueue.clear();
                 isShutterTriggered = true;
             }
-        }
-    });
-}
-
+        
+        
                 workerHandler.post(new Runnable() {
                     @Override
                     public void run() {
