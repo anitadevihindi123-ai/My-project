@@ -22,7 +22,11 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include <poll.h>
+#define LOG_TAG "NativeLoader"
+#define LOGE(...) __android_log_print(ANDROID_LOG_ERROR, LOG_TAG, __VA_ARGS__)
 
+typedef AHardwareBuffer* (*PFN_AHardwareBuffer_fromHardwareBuffer)(JNIEnv* env, jobject hardwareBuffer);
+typedef void (*PFN_AHardwareBuffer_release)(AHardwareBuffer* buffer);
 typedef struct native_handle {
     int version;
     int numFds;
