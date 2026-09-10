@@ -500,7 +500,7 @@ private android.hardware.SensorEventListener gyroListener;
 
                                 nativeExecuteZeroCopyPipeline(hwBuffer, singularityZoom, globalFrameIndex);
 
-                                // [CRITICAL FIX 2]: C++ Engine Guard के अनुकूल बिना 'synchronized' के लॉक-फ्री स्टैकिंग
+                                
                                 if (isShutterTriggered) {
                                     captureQueue.add(hwBuffer);
                                     
