@@ -534,51 +534,7 @@ private android.hardware.SensorEventListener gyroListener;
                 }
             }, workerHandler);
 
-            if (ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) {
-                cameraManager.openCamera(activeCameraId, new CameraDevice.StateCallback() {
-                    @Override
-                    public void onOpened(CameraDevice camera) {
-                        singularityCamera = camera;
-                        try {
-                            Surface previewSurface = previewSurfaceView.getHolder().getSurface();
-                            if (previewSurface != null && previewSurface.isValid()) {
-                                Surface readerSurface = imageReader.getSurface();
-                                
-                                previewRequestBuilder = camera.createCaptureRequest(CameraDevice.TEMPLATE_PREVIEW);
-                                previewRequestBuilder.addTarget(previewSurface);
-                                previewRequestBuilder.addTarget(readerSurface);
-                                
-                                camera.createCaptureSession(Arrays.asList(previewSurface, readerSurface), new CameraCaptureSession.StateCallback() {
-                                    @Override
-                                    public void onConfigured(CameraCaptureSession session) {
-                                        singularitySession = session;
-                                        try {
-                                            previewRequestBuilder.set(CaptureRequest.CONTROL_MODE, CameraMetadata.CONTROL_MODE_AUTO);
-                                            updateCameraZoomOnTheFly(singularityZoom);
-                                        } catch (Exception e) {
-                                            e.printStackTrace();
-                                        }
-                                    }
-                                    @Override
-                                    public void onConfigureFailed(CameraCaptureSession session) {}
-                                }, workerHandler);
-                            }
-                        } catch (Exception e) {
-                            e.printStackTrace();
-                        }
-                    }
-                    @Override
-                    public void onDisconnected(CameraDevice camera) { camera.close(); singularityCamera = null; }
-                    @Override
-                    public void onError(CameraDevice camera, int error) { camera.close(); singularityCamera = null; }
-                }, workerHandler);
-            }
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-    
- 
-
+            
             if (ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) {
                 cameraManager.openCamera(activeCameraId, new CameraDevice.StateCallback() {
                     @Override
