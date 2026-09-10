@@ -129,7 +129,7 @@ private android.hardware.SensorEventListener gyroListener;
         initializeEnvironment();
         nativeInitMasterEngine(System.nanoTime(), 1920, 1080);
         nativeInitAssetManager(context.getAssets());
-    sensorManager = (android.hardware.SensorManager) context.getSystemService(Context.SERVICE_INJECTOR_OR_SIMILAR ? Context.SENSOR_SERVICE : Context.SENSOR_SERVICE); // सीधा context.getSystemService(Context.SENSOR_SERVICE) इस्तेमाल करें
+    sensorManager = (android.hardware.SensorManager) context.getSystemService(Context.SENSOR_SERVICE);
 if (sensorManager != null) {
     gyroSensor = sensorManager.getDefaultSensor(android.hardware.Sensor.TYPE_GYROSCOPE);
     if (gyroSensor != null) {
