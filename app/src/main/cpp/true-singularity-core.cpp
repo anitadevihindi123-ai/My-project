@@ -806,8 +806,34 @@ Java_com_my_newproject_truesingularityclass_nativeProcessDirectPixelBuffer(
     AHardwareBuffer* hb = fromHb ? fromHb(env, hardwareBufferObj) : nullptr;
     if (!hb) return;
 
-    // [DIRECT PIXEL BUFFER]: AHardwareBuffer का उपयोग करके पिक्सेल प्रोसेसिंग लॉजिक यहाँ लिखें
+    AHardwareBuffer_Desc desc;
+    AHardwareBuffer_describe(hb, &desc);
+
+    void *virtAddress = nullptr;
+    int result = AHardwareBuffer_lock(
+        hb, 
+        AHARDWAREBUFFER_USAGE_CPU_READ_OFTEN | AHARDWAREBUFFER_USAGE_CPU_WRITE_OFTEN, 
+        -1, 
+        nullptr, 
+        &virtAddress
+    );
+
+    if (result != 0 || !virtAddress) {
+        return; 
+    }
+
+    uint32_t *pixels = static_cast<uint32_t *>(virtAddress);
+    for (uint32_t y = 0; y < desc.height; ++y) {
+        uint32_t *row = pixels + (y * (desc.stride / 4)); 
+        for (uint32_t x = 0; x < desc.width; ++x) {
+            uint32_t pixel = row[x];
+            row[x] = pixel; 
+        }
+    }
+
+    AHardwareBuffer_unlock(hb, nullptr);
 }
+
 
 extern "C" JNIEXPORT void JNICALL
 Java_com_my_newproject_truesingularityclass_nativeInitWindow(
