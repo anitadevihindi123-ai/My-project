@@ -77,6 +77,7 @@ public:
     VkPipeline computePipeline = VK_NULL_HANDLE;
     VkDescriptorSetLayout descriptorSetLayout = VK_NULL_HANDLE;
     VkDescriptorPool descriptorPool = VK_NULL_HANDLE;
+    VkSampler defaultSampler = VK_NULL_HANDLE;
 
     FinalFrameContext frames[MAX_FRAMES_IN_FLIGHT];
     uint32_t currentFrameIndex = 0;
