@@ -506,6 +506,7 @@ if (thermalFd >= 0) {
     }
 
 void initWindow(ANativeWindow* window) {
+    std::unique_lock<std::shared_mutex> lock(surfaceMutex);
     nativeWindow = window;
     if (!instance || !physicalDevice || !device) return;
 
@@ -514,7 +515,6 @@ void initWindow(ANativeWindow* window) {
     surfInfo.window = nativeWindow;
     if (vkCreateAndroidSurfaceKHR(instance, &surfInfo, nullptr, &surface) != VK_SUCCESS) return;
 
-    // सिंपल Swapchain सेटअप
     VkSurfaceCapabilitiesKHR caps;
     vkGetPhysicalDeviceSurfaceCapabilitiesKHR(physicalDevice, surface, &caps);
 
@@ -532,7 +532,7 @@ void initWindow(ANativeWindow* window) {
     swapInfo.compositeAlpha = VK_COMPOSITE_ALPHA_INHERIT_BIT_KHR;
     swapInfo.presentMode = VK_PRESENT_MODE_FIFO_KHR;
 
-    vkCreateSwapchainKHR(device, &swapInfo, nullptr, &swapchain);
+    if (vkCreateSwapchainKHR(device, &swapInfo, nullptr, &swapchain) != VK_SUCCESS) return;
     vkGetSwapchainImagesKHR(device, swapchain, &swapchainImageCount, nullptr);
     swapchainImages.resize(swapchainImageCount);
     vkGetSwapchainImagesKHR(device, swapchain, &swapchainImageCount, swapchainImages.data());
@@ -549,9 +549,16 @@ void initWindow(ANativeWindow* window) {
         viewInfo.subresourceRange.layerCount = 1;
         vkCreateImageView(device, &viewInfo, nullptr, &swapchainImageViews[i]);
     }
+
+    // रेंडर थ्रेड के लिए स्टेट को एक्टिवेट करें
+    isSurfaceActive.store(true, std::memory_order_release);
 }
 
 void destroyWindow() {
+    // नए फ्रेम्स की एंट्री तुरंत ब्लॉक करें ताकि रेस कंडीशन का खतरा शून्य हो जाए
+    isSurfaceActive.store(false, std::memory_order_release);
+
+    std::unique_lock<std::shared_mutex> lock(surfaceMutex);
     if (device != VK_NULL_HANDLE) {
         vkDeviceWaitIdle(device);
         for (auto v : swapchainImageViews) {
@@ -570,8 +577,8 @@ void destroyWindow() {
     if (nativeWindow) {
         ANativeWindow_release(nativeWindow);
         nativeWindow = nullptr;
-      }
-   }
+    }
+}
 };
 static PureMetalEngine* g_finalEngine = nullptr;
 
