@@ -837,6 +837,9 @@ Java_com_my_newproject_truesingularityclass_nativeExecuteMultiFrameRawStacking(
     if (!fromHb) return;
 
     std::vector<AHardwareBuffer*> frameBuffers;
+    uint32_t imgWidth = 0;
+uint32_t imgHeight = 0;
+
     for (jsize i = 0; i < count; ++i) {
         jobject hbObj = env->GetObjectArrayElement(hardwareBuffersArray, i);
         if (hbObj) {
