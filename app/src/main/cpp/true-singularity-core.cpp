@@ -759,6 +759,30 @@ Java_com_my_newproject_truesingularityclass_nativeExecuteMultiFrameRawStacking(
     FinalFrameContext& frame = g_finalEngine->frames[curFrameIdx];
     g_finalEngine->currentFrameIndex = (curFrameIdx + 1) % MAX_FRAMES_IN_FLIGHT;
 
+    // **100% असली लॉजिक: इनपुट हार्डवेयर बफर्स को Vulkan Descriptor Sets के साथ बाइंड करना**
+    std::vector<VkDescriptorImageInfo> imageInfos;
+    std::vector<VkWriteDescriptorSet> writeDescriptorSets;
+    imageInfos.resize(frameBuffers.size());
+
+    for (size_t i = 0; i < frameBuffers.size(); ++i) {
+        imageInfos[i].sampler = g_finalEngine->defaultSampler;
+        imageInfos[i].imageView = g_finalEngine->GetOrCreateImageViewFromAHB(frameBuffers[i]); 
+        imageInfos[i].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+
+        VkWriteDescriptorSet write = {};
+        write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        write.dstSet = frame.descriptorSet;
+        write.dstBinding = 0; // आपके शेडर का इनपुट बाइंडिंग इंडेक्स
+        write.dstArrayElement = static_cast<uint32_t>(i);
+        write.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+        write.descriptorCount = 1;
+        write.pImageInfo = &imageInfos[i];
+        writeDescriptorSets.push_back(write);
+    }
+
+    // Vulkan डेस्क्रिप्टर सेट्स को अपडेट करें ताकि GPU सीधे इन नए फ्रेम्स पर काम कर सके
+    vkUpdateDescriptorSets(g_finalEngine->device, static_cast<uint32_t>(writeDescriptorSets.size()), writeDescriptorSets.data(), 0, nullptr);
+
     VkCommandBufferBeginInfo beginInfo = {};
     beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
     beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
@@ -767,8 +791,19 @@ Java_com_my_newproject_truesingularityclass_nativeExecuteMultiFrameRawStacking(
     vkCmdBindPipeline(frame.commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, g_finalEngine->computePipeline);
     vkCmdBindDescriptorSets(frame.commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, g_finalEngine->pipelineLayout, 0, 1, &frame.descriptorSet, 0, nullptr);
     
-    vkCmdDispatch(frame.commandBuffer, 512, 512, 1);
+    // टारगेट रेजोल्यूशन (जैसे 1920x1080) के हिसाब से सही वर्कग्रुप डिस्पैच
+    vkCmdDispatch(frame.commandBuffer, (1920 + 15) / 16, (1080 + 15) / 16, 1);
+    
     vkEndCommandBuffer(frame.commandBuffer);
+
+    // GPU सबमिशन और सिंकिंग
+    VkSubmitInfo submitInfo = {};
+    submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+    submitInfo.commandBufferCount = 1;
+    submitInfo.pCommandBuffers = &frame.commandBuffer;
+
+    vkQueueSubmit(g_finalEngine->computeQueue, 1, &submitInfo, VK_NULL_HANDLE);
+    vkQueueWaitIdle(g_finalEngine->computeQueue);
 
     for (auto* hb : frameBuffers) {
         if (hb) {
