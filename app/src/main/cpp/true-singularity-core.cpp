@@ -886,8 +886,8 @@ Java_com_my_newproject_truesingularityclass_nativeExecuteMultiFrameRawStacking(
     vkCmdBindDescriptorSets(frame.commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, g_finalEngine->pipelineLayout, 0, 1, &frame.descriptorSet, 0, nullptr);
     
     // टारगेट रेजोल्यूशन (जैसे 1920x1080) के हिसाब से सही वर्कग्रुप डिस्पैच
-    vkCmdDispatch(frame.commandBuffer, (1920 + 15) / 16, (1080 + 15) / 16, 1);
-    
+    vkCmdDispatch(frame.commandBuffer, (imgWidth + 15) / 16, (imgHeight + 15) / 16, 1);
+
     vkEndCommandBuffer(frame.commandBuffer);
 
     // GPU सबमिशन और सिंकिंग
