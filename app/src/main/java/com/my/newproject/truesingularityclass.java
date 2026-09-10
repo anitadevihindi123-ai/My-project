@@ -321,10 +321,9 @@ private android.hardware.SensorEventListener gyroListener;
         public void onClick(View v) {
             if (!recordingMode) {
                 // शटर दबते ही स्टैकिंग और फ्लैग एक्टिव करना
-                synchronized (captureQueue) {
-                    captureQueue.clear();
-                    isShutterTriggered = true;
-                }
+                captureQueue.clear();
+isShutterTriggered = true;
+
 
                 workerHandler.post(new Runnable() {
                     @Override
