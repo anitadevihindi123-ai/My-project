@@ -687,7 +687,10 @@ imageReader.setOnImageAvailableListener(new ImageReader.OnImageAvailableListener
 
         public void destroyEngine() {
         nativeDestroyMasterEngine();
-        
+        if (sensorManager != null && gyroListener != null) {
+    sensorManager.unregisterListener(gyroListener);
+}
+
         if (uiHandler != null && timerRunnable != null) {
             uiHandler.removeCallbacks(timerRunnable);
         }
