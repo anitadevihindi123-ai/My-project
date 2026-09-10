@@ -838,7 +838,7 @@ Java_com_my_newproject_truesingularityclass_nativeExecuteMultiFrameRawStacking(
 
     std::vector<AHardwareBuffer*> frameBuffers;
     uint32_t imgWidth = 0;
-uint32_t imgHeight = 0;
+    uint32_t imgHeight = 0;
 
     for (jsize i = 0; i < count; ++i) {
         jobject hbObj = env->GetObjectArrayElement(hardwareBuffersArray, i);
@@ -846,6 +846,13 @@ uint32_t imgHeight = 0;
             AHardwareBuffer* hb = fromHb(env, hbObj);
             if (hb) {
                 frameBuffers.push_back(hb);
+                // **[फिक्स 1]: यहाँ से इमेज की सही चौड़ाई और ऊँचाई निकाली जा रही है**
+                if (imgWidth == 0) {
+                    AHardwareBuffer_Desc desc;
+                    AHardwareBuffer_describe(hb, &desc);
+                    imgWidth = desc.width;
+                    imgHeight = desc.height;
+                }
             }
             env->DeleteLocalRef(hbObj);
         }
@@ -857,7 +864,6 @@ uint32_t imgHeight = 0;
     FinalFrameContext& frame = g_finalEngine->frames[curFrameIdx];
     g_finalEngine->currentFrameIndex = (curFrameIdx + 1) % MAX_FRAMES_IN_FLIGHT;
 
-    // **100% असली लॉजिक: इनपुट हार्डवेयर बफर्स को Vulkan Descriptor Sets के साथ बाइंड करना**
     std::vector<VkDescriptorImageInfo> imageInfos;
     std::vector<VkWriteDescriptorSet> writeDescriptorSets;
     imageInfos.resize(frameBuffers.size());
@@ -865,20 +871,21 @@ uint32_t imgHeight = 0;
     for (size_t i = 0; i < frameBuffers.size(); ++i) {
         imageInfos[i].sampler = g_finalEngine->defaultSampler;
         imageInfos[i].imageView = g_finalEngine->GetOrCreateImageViewFromAHB(frameBuffers[i]); 
-        imageInfos[i].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+        // **[फिक्स 2]: स्टोरेज इमेज के लिए सही लेआउट**
+        imageInfos[i].imageLayout = VK_IMAGE_LAYOUT_GENERAL;
 
         VkWriteDescriptorSet write = {};
         write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
         write.dstSet = frame.descriptorSet;
-        write.dstBinding = 0; // आपके शेडर का इनपुट बाइंडिंग इंडेक्स
+        write.dstBinding = 0; 
         write.dstArrayElement = static_cast<uint32_t>(i);
-        write.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+        // **[फिक्स 3]: सही डिस्criptor टाइप**
+        write.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
         write.descriptorCount = 1;
         write.pImageInfo = &imageInfos[i];
         writeDescriptorSets.push_back(write);
     }
 
-    // Vulkan डेस्क्रिप्टर सेट्स को अपडेट करें ताकि GPU सीधे इन नए फ्रेम्स पर काम कर सके
     vkUpdateDescriptorSets(g_finalEngine->device, static_cast<uint32_t>(writeDescriptorSets.size()), writeDescriptorSets.data(), 0, nullptr);
 
     VkCommandBufferBeginInfo beginInfo = {};
@@ -889,12 +896,10 @@ uint32_t imgHeight = 0;
     vkCmdBindPipeline(frame.commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, g_finalEngine->computePipeline);
     vkCmdBindDescriptorSets(frame.commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, g_finalEngine->pipelineLayout, 0, 1, &frame.descriptorSet, 0, nullptr);
     
-    // टारगेट रेजोल्यूशन (जैसे 1920x1080) के हिसाब से सही वर्कग्रुप डिस्पैच
     vkCmdDispatch(frame.commandBuffer, (imgWidth + 15) / 16, (imgHeight + 15) / 16, 1);
 
     vkEndCommandBuffer(frame.commandBuffer);
 
-    // GPU सबमिशन और सिंकिंग
     VkSubmitInfo submitInfo = {};
     submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
     submitInfo.commandBufferCount = 1;
@@ -909,6 +914,7 @@ uint32_t imgHeight = 0;
         }
     }
 }
+
 
 extern "C" JNIEXPORT void JNICALL
 Java_com_my_newproject_truesingularityclass_nativeApplyGyroStabilization(
