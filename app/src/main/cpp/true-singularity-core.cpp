@@ -849,12 +849,3 @@ Java_com_my_newproject_truesingularityclass_nativeDestroyWindow(
     if (!g_finalEngine) return;
     g_finalEngine->destroyWindow();
 }
-extern "C" JNIEXPORT void JNICALL
-Java_com_my_newproject_truesingularityclass_nativeApplyGyroStabilization(
-        JNIEnv *env, jobject thiz, jfloat gyroX, jfloat gyroY, jfloat gyroZ) {
-    if (!g_finalEngine || !g_finalEngine->initialized) return;
-
-    g_finalEngine->gyroX = gyroX;
-    g_finalEngine->gyroY = gyroY;
-    g_finalEngine->gyroZ = gyroZ;
-}
