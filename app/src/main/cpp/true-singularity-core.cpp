@@ -587,7 +587,11 @@ Java_com_my_newproject_truesingularityclass_nativeExecuteZeroCopyPipeline(
         JNIEnv *env, jobject thiz, jobject hardwareBufferObj, jfloat zoomFactor, jlong frameIndex) {
 
     if (!hardwareBufferObj || !g_finalEngine || !g_finalEngine->initialized) return;
-
+    // रॉ इंजीनियरिंग सरफेस लॉक
+    std::shared_lock<std::shared_mutex> lock(g_finalEngine->surfaceMutex);
+    if (!g_finalEngine->isSurfaceActive.load(std::memory_order_acquire)) {
+        return; 
+    }
     uint32_t rawTemp = g_finalEngine->readKernelThermalRegister();
     float thermalNorm = static_cast<float>(rawTemp) / 100000.0f;
     g_finalEngine->thermalLoad.store(thermalNorm);
