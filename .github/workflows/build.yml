@@ -26,7 +26,7 @@ jobs:
       - name: Install Native Clang and LLVM Development Tools
         run: |
           sudo apt-get update
-          sudo apt-get install -y clang libclang-dev llvm llvm-dev
+          sudo apt-get install -y clang libclang-18-dev libclang-dev llvm llvm-dev llvm-runtime
 
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v3
@@ -42,9 +42,12 @@ jobs:
         env:
           ANDROID_HOME: ${{ steps.setup-android.outputs.android-home }}
 
-      - name: Run Master Iron Guard Static Scanner
+      - name: Run Master Iron Guard Static Scanner with Clang Linkage
         run: |
-          g++ -O3 -std=c++17 app/src/main/cpp/EngineCoreCompilerWrapper.cpp -o engine_host_scanner
+          g++ -O3 -std=c++17 app/src/main/cpp/EngineCoreCompilerWrapper.cpp \
+          -o engine_host_scanner \
+          $(llvm-config --cxxflags --ldflags --libs core support) \
+          -lclang
           ./engine_host_scanner .
 
       - name: Run Build
