@@ -355,177 +355,177 @@ if (thermalFd >= 0) {
     }
 
     void ignite(AAssetManager* assetManager) {
-        if (initialized) return;
-        initThermalMonitor();
+    if (initialized) return;
+    initThermalMonitor();
 
-        VkApplicationInfo appInfo = {};
-        appInfo.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
-        appInfo.pApplicationName = "PureMetalEngine";
-        appInfo.apiVersion = VK_API_VERSION_1_1;
+    VkApplicationInfo appInfo = {};
+    appInfo.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
+    appInfo.pApplicationName = "PureMetalEngine";
+    appInfo.apiVersion = VK_API_VERSION_1_1;
 
-        const char* instExtensions[] = {
-            VK_KHR_EXTERNAL_MEMORY_CAPABILITIES_EXTENSION_NAME,
-            VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME
-        };
+    const char* instExtensions[] = {
+        VK_KHR_EXTERNAL_MEMORY_CAPABILITIES_EXTENSION_NAME,
+        VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME
+    };
 
-        VkInstanceCreateInfo instInfo = {};
-        instInfo.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
-        instInfo.pApplicationInfo = &appInfo;
-        instInfo.enabledExtensionCount = 2;
-        instInfo.ppEnabledExtensionNames = instExtensions;
-        instInfo.enabledLayerCount = 0;
+    VkInstanceCreateInfo instInfo = {};
+    instInfo.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
+    instInfo.pApplicationInfo = &appInfo;
+    instInfo.enabledExtensionCount = 2;
+    instInfo.ppEnabledExtensionNames = instExtensions;
+    instInfo.enabledLayerCount = 0;
 
-        VK_CHECK(vkCreateInstance(&instInfo, nullptr, &instance));
+    VK_CHECK(vkCreateInstance(&instInfo, nullptr, &instance));
 
+    uint32_t devCount = 0;
+    vkEnumeratePhysicalDevices(instance, &devCount, nullptr);
+    if (devCount == 0) return;
+    std::vector<VkPhysicalDevice> devs(devCount);
+    vkEnumeratePhysicalDevices(instance, &devCount, devs.data());
+    physicalDevice = devs[0];
 
-        uint32_t devCount = 0;
-        vkEnumeratePhysicalDevices(instance, &devCount, nullptr);
-        if (devCount == 0) return;
-        std::vector<VkPhysicalDevice> devs(devCount);
-        vkEnumeratePhysicalDevices(instance, &devCount, devs.data());
-        physicalDevice = devs[0];
+    uint32_t qCount = 0;
+    vkGetPhysicalDeviceQueueFamilyProperties(physicalDevice, &qCount, nullptr);
+    std::vector<VkQueueFamilyProperties> qFamilies(qCount);
+    vkGetPhysicalDeviceQueueFamilyProperties(physicalDevice, &qCount, qFamilies.data());
 
-        uint32_t qCount = 0;
-        vkGetPhysicalDeviceQueueFamilyProperties(physicalDevice, &qCount, nullptr);
-        std::vector<VkQueueFamilyProperties> qFamilies(qCount);
-        vkGetPhysicalDeviceQueueFamilyProperties(physicalDevice, &qCount, qFamilies.data());
-
-        uint32_t idx = 0;
-        for (const auto& qf : qFamilies) {
-            if (qf.queueFlags & VK_QUEUE_COMPUTE_BIT) {
-                queueFamilyIndex = idx;
-                break;
-            }
-            idx++;
+    uint32_t idx = 0;
+    for (const auto& qf : qFamilies) {
+        if (qf.queueFlags & VK_QUEUE_COMPUTE_BIT) {
+            queueFamilyIndex = idx;
+            break;
         }
-
-        float priority = 1.0f;
-        VkDeviceQueueCreateInfo qInfo = {};
-        qInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
-        qInfo.queueFamilyIndex = queueFamilyIndex;
-        qInfo.queueCount = 1;
-        qInfo.pQueuePriorities = &priority;
-
-        const char* devExtensions[] = {
-            "VK_ANDROID_external_memory_android_hardware_buffer",
-            VK_KHR_EXTERNAL_MEMORY_EXTENSION_NAME,
-            VK_KHR_IMAGE_FORMAT_LIST_EXTENSION_NAME,
-            VK_KHR_SAMPLER_YCBCR_CONVERSION_EXTENSION_NAME
-        };
-
-        VkDeviceCreateInfo devInfo = {};
-        devInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
-        devInfo.queueCreateInfoCount = 1;
-        devInfo.pQueueCreateInfos = &qInfo;
-        devInfo.enabledExtensionCount = 4;
-        devInfo.ppEnabledExtensionNames = devExtensions;
-
-        VK_CHECK(vkCreateDevice(physicalDevice, &devInfo, nullptr, &device));
-        vkGetDeviceQueue(device, queueFamilyIndex, 0, &computeQueue);
-
-        if (assetManager) {
-            AAsset* asset = AAssetManager_open(assetManager, "singularity_compute.spv", AASSET_MODE_STREAMING);
-            if (asset) {
-                size_t size = static_cast<size_t>(AAsset_getLength(asset));
-                std::vector<char> shaderCode(size);
-                AAsset_read(asset, shaderCode.data(), size);
-                AAsset_close(asset);
-
-                VkShaderModuleCreateInfo shaderInfo = {};
-                shaderInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
-                shaderInfo.codeSize = shaderCode.size();
-                shaderInfo.pCode = reinterpret_cast<const uint32_t*>(shaderCode.data());
-                VK_CHECK(vkCreateShaderModule(device, &shaderInfo, nullptr, &shaderModule));
-
-            }
-        }
-
-        VkDescriptorSetLayoutBinding bindings[3] = {};
-        for (int i = 0; i < 3; ++i) {
-            bindings[i].binding = i;
-            bindings[i].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
-            bindings[i].descriptorCount = 1;
-            bindings[i].stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
-        }
-
-        VkDescriptorSetLayoutCreateInfo layoutInfo = {};
-        layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-        layoutInfo.bindingCount = 3;
-        layoutInfo.pBindings = bindings;
-        vkCreateDescriptorSetLayout(device, &layoutInfo, nullptr, &descriptorSetLayout);
-
-        VkPushConstantRange pushConstantRange = {};
-        pushConstantRange.stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
-        pushConstantRange.offset = 0;
-        pushConstantRange.size = sizeof(FinalConstants);
-
-        VkPipelineLayoutCreateInfo pipelineLayoutInfo = {};
-        pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-        pipelineLayoutInfo.setLayoutCount = 1;
-        pipelineLayoutInfo.pSetLayouts = &descriptorSetLayout;
-        pipelineLayoutInfo.pushConstantRangeCount = 1;
-        pipelineLayoutInfo.pPushConstantRanges = &pushConstantRange;
-        vkCreatePipelineLayout(device, &pipelineLayoutInfo, nullptr, &pipelineLayout);
-
-        if (shaderModule != VK_NULL_HANDLE) {
-            VkComputePipelineCreateInfo pipelineInfo = {};
-            pipelineInfo.sType = VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO;
-            pipelineInfo.stage.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
-            pipelineInfo.stage.stage = VK_SHADER_STAGE_COMPUTE_BIT;
-            pipelineInfo.stage.module = shaderModule;
-            pipelineInfo.stage.pName = "main";
-            pipelineInfo.layout = pipelineLayout;
-            vkCreateComputePipelines(device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &computePipeline);
-        }
-
-        VkDescriptorPoolSize poolSize = { VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 3 * MAX_FRAMES_IN_FLIGHT };
-        VkDescriptorPoolCreateInfo poolInfo = {};
-        poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
-        poolInfo.maxSets = MAX_FRAMES_IN_FLIGHT;
-        poolInfo.poolSizeCount = 1;
-        poolInfo.pPoolSizes = &poolSize;
-        vkCreateDescriptorPool(device, &poolInfo, nullptr, &descriptorPool);
-
-        VkSemaphoreTypeCreateInfo timelineInfo = {};
-        timelineInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_TYPE_CREATE_INFO;
-        timelineInfo.semaphoreType = VK_SEMAPHORE_TYPE_TIMELINE;
-        timelineInfo.initialValue = 0;
-
-        VkSemaphoreCreateInfo semInfo = {};
-        semInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
-        semInfo.pNext = &timelineInfo;
-        vkCreateSemaphore(device, &semInfo, nullptr, &timelineSemaphore);
-
-        for (int i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
-            VkCommandPoolCreateInfo cmdPoolInfo = {};
-            cmdPoolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
-            cmdPoolInfo.queueFamilyIndex = queueFamilyIndex;
-            cmdPoolInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
-            vkCreateCommandPool(device, &cmdPoolInfo, nullptr, &frames[i].commandPool);
-
-            VkCommandBufferAllocateInfo cmdAllocInfo = {};
-            cmdAllocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-            cmdAllocInfo.commandPool = frames[i].commandPool;
-            cmdAllocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-            cmdAllocInfo.commandBufferCount = 1;
-            vkAllocateCommandBuffers(device, &cmdAllocInfo, &frames[i].commandBuffer);
-
-            VkDescriptorSetAllocateInfo allocInfo = {};
-            allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
-            allocInfo.descriptorPool = descriptorPool;
-            allocInfo.descriptorSetCount = 1;
-            allocInfo.pSetLayouts = &descriptorSetLayout;
-            vkAllocateDescriptorSets(device, &allocInfo, &frames[i].descriptorSet);
-
-            frames[i].timelineTargetValue = 0;
-            frames[i].frameOutputView = VK_NULL_HANDLE;
-        }
-                    pfnVkWaitSemaphores = reinterpret_cast<PFN_vkWaitSemaphores>(
-            vkGetDeviceProcAddr(device, "vkWaitSemaphores")
-        );
-
-        initialized = true;
+        idx++;
     }
+
+    float priority = 1.0f;
+    VkDeviceQueueCreateInfo qInfo = {};
+    qInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
+    qInfo.queueFamilyIndex = queueFamilyIndex;
+    qInfo.queueCount = 1;
+    qInfo.pQueuePriorities = &priority;
+
+    const char* devExtensions[] = {
+        "VK_ANDROID_external_memory_android_hardware_buffer",
+        VK_KHR_EXTERNAL_MEMORY_EXTENSION_NAME,
+        VK_KHR_IMAGE_FORMAT_LIST_EXTENSION_NAME,
+        VK_KHR_SAMPLER_YCBCR_CONVERSION_EXTENSION_NAME
+    };
+
+    VkDeviceCreateInfo devInfo = {};
+    devInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
+    devInfo.queueCreateInfoCount = 1;
+    devInfo.pQueueCreateInfos = &qInfo;
+    devInfo.enabledExtensionCount = 4;
+    devInfo.ppEnabledExtensionNames = devExtensions;
+
+    VK_CHECK(vkCreateDevice(physicalDevice, &devInfo, nullptr, &device));
+    vkGetDeviceQueue(device, queueFamilyIndex, 0, &computeQueue);
+
+    if (assetManager) {
+        AAsset* asset = AAssetManager_open(assetManager, "singularity_compute.spv", AASSET_MODE_STREAMING);
+        if (asset) {
+            size_t size = static_cast<size_t>(AAsset_getLength(asset));
+            std::vector<char> shaderCode(size);
+            AAsset_read(asset, shaderCode.data(), size);
+            AAsset_close(asset);
+
+            VkShaderModuleCreateInfo shaderInfo = {};
+            shaderInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
+            shaderInfo.codeSize = shaderCode.size();
+            shaderInfo.pCode = reinterpret_cast<const uint32_t*>(shaderCode.data());
+            VK_CHECK(vkCreateShaderModule(device, &shaderInfo, nullptr, &shaderModule));
+        }
+    }
+
+    VkDescriptorSetLayoutBinding bindings[3] = {};
+    for (int i = 0; i < 3; ++i) {
+        bindings[i].binding = i;
+        bindings[i].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
+        bindings[i].descriptorCount = 1;
+        bindings[i].stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
+    }
+
+    VkDescriptorSetLayoutCreateInfo layoutInfo = {};
+    layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+    layoutInfo.bindingCount = 3;
+    layoutInfo.pBindings = bindings;
+    VK_CHECK(vkCreateDescriptorSetLayout(device, &layoutInfo, nullptr, &descriptorSetLayout));
+
+    VkPushConstantRange pushConstantRange = {};
+    pushConstantRange.stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
+    pushConstantRange.offset = 0;
+    pushConstantRange.size = sizeof(FinalConstants);
+
+    VkPipelineLayoutCreateInfo pipelineLayoutInfo = {};
+    pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+    pipelineLayoutInfo.setLayoutCount = 1;
+    pipelineLayoutInfo.pSetLayouts = &descriptorSetLayout;
+    pipelineLayoutInfo.pushConstantRangeCount = 1;
+    pipelineLayoutInfo.pPushConstantRanges = &pushConstantRange;
+    VK_CHECK(vkCreatePipelineLayout(device, &pipelineLayoutInfo, nullptr, &pipelineLayout));
+
+    if (shaderModule != VK_NULL_HANDLE) {
+        VkComputePipelineCreateInfo pipelineInfo = {};
+        pipelineInfo.sType = VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO;
+        pipelineInfo.stage.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+        pipelineInfo.stage.stage = VK_SHADER_STAGE_COMPUTE_BIT;
+        pipelineInfo.stage.module = shaderModule;
+        pipelineInfo.stage.pName = "main";
+        pipelineInfo.layout = pipelineLayout;
+        VK_CHECK(vkCreateComputePipelines(device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &computePipeline));
+    }
+
+    VkDescriptorPoolSize poolSize = { VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 3 * MAX_FRAMES_IN_FLIGHT };
+    VkDescriptorPoolCreateInfo poolInfo = {};
+    poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+    poolInfo.maxSets = MAX_FRAMES_IN_FLIGHT;
+    poolInfo.poolSizeCount = 1;
+    poolInfo.pPoolSizes = &poolSize;
+    VK_CHECK(vkCreateDescriptorPool(device, &poolInfo, nullptr, &descriptorPool));
+
+    VkSemaphoreTypeCreateInfo timelineInfo = {};
+    timelineInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_TYPE_CREATE_INFO;
+    timelineInfo.semaphoreType = VK_SEMAPHORE_TYPE_TIMELINE;
+    timelineInfo.initialValue = 0;
+
+    VkSemaphoreCreateInfo semInfo = {};
+    semInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
+    semInfo.pNext = &timelineInfo;
+    VK_CHECK(vkCreateSemaphore(device, &semInfo, nullptr, &timelineSemaphore));
+
+    for (int i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
+        VkCommandPoolCreateInfo cmdPoolInfo = {};
+        cmdPoolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
+        cmdPoolInfo.queueFamilyIndex = queueFamilyIndex;
+        cmdPoolInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
+        VK_CHECK(vkCreateCommandPool(device, &cmdPoolInfo, nullptr, &frames[i].commandPool));
+
+        VkCommandBufferAllocateInfo cmdAllocInfo = {};
+        cmdAllocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+        cmdAllocInfo.commandPool = frames[i].commandPool;
+        cmdAllocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+        cmdAllocInfo.commandBufferCount = 1;
+        VK_CHECK(vkAllocateCommandBuffers(device, &cmdAllocInfo, &frames[i].commandBuffer));
+
+        VkDescriptorSetAllocateInfo allocInfo = {};
+        allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+        allocInfo.descriptorPool = descriptorPool;
+        allocInfo.descriptorSetCount = 1;
+        allocInfo.pSetLayouts = &descriptorSetLayout;
+        VK_CHECK(vkAllocateDescriptorSets(device, &allocInfo, &frames[i].descriptorSet));
+
+        frames[i].timelineTargetValue = 0;
+        frames[i].frameOutputView = VK_NULL_HANDLE;
+    }
+
+    pfnVkWaitSemaphores = reinterpret_cast<PFN_vkWaitSemaphores>(
+        vkGetDeviceProcAddr(device, "vkWaitSemaphores")
+    );
+
+    initialized = true;
+}
+
 
 void initWindow(ANativeWindow* window) {
     std::unique_lock<std::shared_mutex> lock(surfaceMutex);
