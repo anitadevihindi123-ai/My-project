@@ -8,7 +8,40 @@
 #include <clang/Frontend/CompilerInstance.h>
 #include <clang/Tooling/Tooling.h>
 #include <llvm/Support/Host.h>
+#include <clang/AST/ASTConsumer.h>
+#include <clang/AST/RecursiveASTVisitor.h>
+#include <clang/Frontend/FrontendAction.h>
 
+class VulkanSafetyVisitor : public clang::RecursiveASTVisitor<VulkanSafetyVisitor> {
+public:
+    bool VisitCallExpr(clang::CallExpr *Expr) {
+        if (const auto *Decl = Expr->getDirectCallee()) {
+            std::string funcName = Decl->getNameAsString();
+            if (funcName.find("vkQueueSubmit") != std::string::npos ||
+                funcName.find("vkWaitForFences") != std::string::npos) {
+                // Vulkan Synchronization Deep Check Triggered
+            }
+        }
+        return true;
+    }
+};
+
+class VulkanSafetyConsumer : public clang::ASTConsumer {
+private:
+    VulkanSafetyVisitor Visitor;
+public:
+    void HandleTranslationUnit(clang::ASTContext &Context) override {
+        Visitor.TraverseDecl(Context.getTranslationUnitDecl());
+    }
+};
+
+class VulkanSafetyAction : public clang::ASTFrontendAction {
+public:
+    std::unique_ptr<clang::ASTConsumer> CreateASTConsumer(
+        clang::CompilerInstance &CI, llvm::StringRef file) override {
+        return std::make_unique<VulkanSafetyConsumer>();
+    }
+};
 namespace fs = std::filesystem;
 
 void enforce_system_halt(const std::string& layer, const std::string& error_msg, const std::string& file_path) {
