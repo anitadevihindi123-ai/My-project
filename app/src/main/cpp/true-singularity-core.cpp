@@ -375,7 +375,8 @@ if (thermalFd >= 0) {
         instInfo.ppEnabledExtensionNames = instExtensions;
         instInfo.enabledLayerCount = 0;
 
-        if (vkCreateInstance(&instInfo, nullptr, &instance) != VK_SUCCESS) return;
+        VK_CHECK(vkCreateInstance(&instInfo, nullptr, &instance));
+
 
         uint32_t devCount = 0;
         vkEnumeratePhysicalDevices(instance, &devCount, nullptr);
