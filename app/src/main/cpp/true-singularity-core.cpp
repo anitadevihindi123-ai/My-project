@@ -5,6 +5,7 @@
 #include <vector>
 #include <unordered_map>
 #include <mutex>
+#include <shared_mutex>
 #include <cstdio>
 #include <dlfcn.h>
 #include <android/log.h>
