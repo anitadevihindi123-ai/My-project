@@ -300,34 +300,47 @@ if (thermalFd >= 0) {
         }
     }
 
-    void initThermalMonitor() {
-    thermalFd = open("/sys/class/thermal/thermal_zone0/temp", O_RDONLY | O_NONBLOCK);
+        void initThermalMonitor() {
+        // **[रॉ इंजीनियरिंग डायनेमिक पाथ स्कैनिंग]**
+        const char* possiblePaths[] = {
+            "/sys/class/thermal/thermal_zone0/temp",
+            "/sys/class/thermal/thermal_zone1/temp",
+            "/sys/class/thermal/thermal_zone2/temp",
+            "/sys/devices/virtual/thermal/thermal_zone0/temp"
+        };
 
-    thermalThread = std::thread([this]() {
-        char buffer[64];
-        struct pollfd pfd;
-        pfd.fd = thermalFd;
-        pfd.events = POLLPRI | POLLERR;
-
-        while (thermalRunning) {
+        for (const char* path : possiblePaths) {
+            thermalFd = open(path, O_RDONLY | O_NONBLOCK);
             if (thermalFd >= 0) {
-                int ret = poll(&pfd, 1, 2000);
-                if (ret >= 0) {
-                    lseek(thermalFd, 0, SEEK_SET);
-                    int bytes = read(thermalFd, buffer, sizeof(buffer) - 1);
-                    if (bytes > 0) {
-                        buffer[bytes] = '\0';
-                        try {
-                            float temp = std::stof(buffer) / 1000.0f;
-                            cachedTemperature.store(temp, std::memory_order_relaxed);
-                        } catch (...) {}
+                break; // जैसे ही सही थर्मल जोन फाइल मिल जाएगी, लूप ब्रेक हो जाएगा
+            }
+        }
+
+        thermalThread = std::thread([this]() {
+            char buffer[64];
+            struct pollfd pfd;
+            pfd.fd = thermalFd;
+            pfd.events = POLLPRI | POLLERR;
+
+            while (thermalRunning) {
+                if (thermalFd >= 0) {
+                    int ret = poll(&pfd, 1, 2000);
+                    if (ret >= 0) {
+                        lseek(thermalFd, 0, SEEK_SET);
+                        int bytes = read(thermalFd, buffer, sizeof(buffer) - 1);
+                        if (bytes > 0) {
+                            buffer[bytes] = '\0';
+                            try {
+                                float temp = std::stof(buffer) / 1000.0f;
+                                cachedTemperature.store(temp, std::memory_order_relaxed);
+                            } catch (...) {}
+                        }
                     }
                 }
+                std::this_thread::sleep_for(std::chrono::seconds(2));
             }
-            std::this_thread::sleep_for(std::chrono::seconds(2));
-        }
-    });
-}
+        });
+    }
 
     uint32_t readKernelThermalRegister() {
         float temp = cachedTemperature.load(std::memory_order_relaxed);
