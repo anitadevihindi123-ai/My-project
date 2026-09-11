@@ -771,7 +771,7 @@ VK_CHECK(vkBindImageMemory(g_finalEngine->device, newImg.vkImage, newImg.vkMemor
                 }
             }
         }
-    }
+    
 
     if (cachedImg.vkImageView != VK_NULL_HANDLE) {
         uint32_t prevFrameIdx = (curFrameIdx == 0) ? (MAX_FRAMES_IN_FLIGHT - 1) : (curFrameIdx - 1);
