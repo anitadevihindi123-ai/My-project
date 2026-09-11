@@ -245,8 +245,8 @@ std::thread thermalThread;
                     allocInfo.allocationSize = ahbProps.allocationSize;
                     allocInfo.memoryTypeIndex = memTypeIdx;
 
-                    if (vkAllocateMemory(device, &allocInfo, nullptr, &newImg.vkMemory) == VK_SUCCESS) {
-                        vkBindImageMemory(device, newImg.vkImage, newImg.vkMemory, 0);
+                    VK_CHECK(vkAllocateMemory(device, &allocInfo, nullptr, &newImg.vkMemory));
+VK_CHECK(vkBindImageMemory(device, newImg.vkImage, newImg.vkMemory, 0));
 
                         VkImageViewCreateInfo viewInfo = {};
                         viewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
