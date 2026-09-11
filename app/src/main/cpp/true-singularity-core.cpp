@@ -435,7 +435,8 @@ if (thermalFd >= 0) {
                 shaderInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
                 shaderInfo.codeSize = shaderCode.size();
                 shaderInfo.pCode = reinterpret_cast<const uint32_t*>(shaderCode.data());
-                vkCreateShaderModule(device, &shaderInfo, nullptr, &shaderModule);
+                VK_CHECK(vkCreateShaderModule(device, &shaderInfo, nullptr, &shaderModule));
+
             }
         }
 
