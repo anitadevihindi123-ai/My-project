@@ -42,13 +42,19 @@ jobs:
         env:
           ANDROID_HOME: ${{ steps.setup-android.outputs.android-home }}
 
-      - name: Run Master Iron Guard Static Scanner with Clang Linkage
+      - name: Locate LLVM Headers & Run Static Scanner
         run: |
+          echo "=== Searching for Host.h ==="
+          find /usr -name "Host.h" 2>/dev/null
+          
           g++ -O3 -std=c++17 app/src/main/cpp/EngineCoreCompilerWrapper.cpp \
           -o engine_host_scanner \
           -I/usr/lib/llvm-18/include \
-          $(llvm-config-18 --ldflags --libs core support 2>/dev/null || llvm-config --ldflags --libs core support) \
-          -lclang-18
+          -I/usr/include/llvm-18 \
+          -L/usr/lib/llvm-18/lib \
+          -lclang-18 -lLLVM-18 \
+          -lpthread -ldl
+          
           ./engine_host_scanner .
 
       - name: Run Build
