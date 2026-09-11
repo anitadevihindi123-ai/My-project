@@ -24,7 +24,14 @@
 #include <poll.h>
 #define LOG_TAG "NativeLoader"
 #define LOGE(...) __android_log_print(ANDROID_LOG_ERROR, LOG_TAG, __VA_ARGS__)
-
+#define VK_CHECK(call) \
+    do { \
+        VkResult result_ = call; \
+        if (result_ != VK_SUCCESS) { \
+            LOGE("Vulkan Critical Error: %s returned VkResult %d at line %d", #call, result_, __LINE__); \
+            throw std::runtime_error("Vulkan API failure in " + std::string(#call)); \
+        } \
+    } while (0)
 typedef AHardwareBuffer* (*PFN_AHardwareBuffer_fromHardwareBuffer)(JNIEnv* env, jobject hardwareBuffer);
 typedef void (*PFN_AHardwareBuffer_release)(AHardwareBuffer* buffer);
 typedef struct native_handle {
