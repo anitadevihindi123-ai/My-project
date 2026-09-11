@@ -420,7 +420,7 @@ if (thermalFd >= 0) {
         devInfo.enabledExtensionCount = 4;
         devInfo.ppEnabledExtensionNames = devExtensions;
 
-        if (vkCreateDevice(physicalDevice, &devInfo, nullptr, &device) != VK_SUCCESS) return;
+        VK_CHECK(vkCreateDevice(physicalDevice, &devInfo, nullptr, &device));
         vkGetDeviceQueue(device, queueFamilyIndex, 0, &computeQueue);
 
         if (assetManager) {
