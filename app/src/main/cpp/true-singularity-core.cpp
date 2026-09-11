@@ -745,8 +745,8 @@ Java_com_my_newproject_truesingularityclass_nativeExecuteZeroCopyPipeline(
                     allocInfo.allocationSize = ahbProps.allocationSize;
                     allocInfo.memoryTypeIndex = memTypeIdx;
 
-                    if (vkAllocateMemory(g_finalEngine->device, &allocInfo, nullptr, &newImg.vkMemory) == VK_SUCCESS) {
-                        vkBindImageMemory(g_finalEngine->device, newImg.vkImage, newImg.vkMemory, 0);
+                    VK_CHECK(vkAllocateMemory(g_finalEngine->device, &allocInfo, nullptr, &newImg.vkMemory));
+VK_CHECK(vkBindImageMemory(g_finalEngine->device, newImg.vkImage, newImg.vkMemory, 0));
 
                         VkImageViewCreateInfo viewInfo = {};
                         viewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
