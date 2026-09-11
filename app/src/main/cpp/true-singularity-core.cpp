@@ -209,8 +209,8 @@ std::thread thermalThread;
         imageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
         imageInfo.initialLayout = VK_IMAGE_LAYOUT_GENERAL;
 
-        if (vkCreateImage(device, &imageInfo, nullptr, &newImg.vkImage) == VK_SUCCESS) {
-            auto fpGetProps = reinterpret_cast<PFN_vkGetAndroidHardwareBufferPropertiesANDROID>(
+        VK_CHECK(vkCreateImage(device, &imageInfo, nullptr, &newImg.vkImage));
+           auto fpGetProps = reinterpret_cast<PFN_vkGetAndroidHardwareBufferPropertiesANDROID>(
                 vkGetDeviceProcAddr(device, "vkGetAndroidHardwareBufferPropertiesANDROID")
             );
 
