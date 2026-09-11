@@ -268,10 +268,10 @@ VK_CHECK(vkBindImageMemory(device, newImg.vkImage, newImg.vkMemory, 0));
                         return newImg.vkImageView;
                     }
                 }
-            }
+            
         
         return VK_NULL_HANDLE;
-    
+    }
 
     ~PureMetalEngine() {
        thermalRunning = false;
