@@ -706,8 +706,8 @@ Java_com_my_newproject_truesingularityclass_nativeExecuteZeroCopyPipeline(
         imageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
         imageInfo.initialLayout = VK_IMAGE_LAYOUT_GENERAL;
 
-        if (vkCreateImage(g_finalEngine->device, &imageInfo, nullptr, &newImg.vkImage) == VK_SUCCESS) {
-            auto fpGetProps = reinterpret_cast<PFN_vkGetAndroidHardwareBufferPropertiesANDROID>(
+      VK_CHECK(vkCreateImage(g_finalEngine->device, &imageInfo, nullptr, &newImg.vkImage));  
+        auto fpGetProps = reinterpret_cast<PFN_vkGetAndroidHardwareBufferPropertiesANDROID>(
                 vkGetDeviceProcAddr(g_finalEngine->device, "vkGetAndroidHardwareBufferPropertiesANDROID")
             );
 
