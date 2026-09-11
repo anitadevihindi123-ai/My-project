@@ -79,53 +79,40 @@ void scan_native_sources(const fs::path& root_dir) {
                 std::string current_function = "";
                 bool inside_hot_loop = false;
 
-                while (std::getline(file, line)) {
-                    line_num++;
+                void scan_native_sources(const fs::path& root_dir) {
+    for (auto const& dir_entry : fs::recursive_directory_iterator(root_dir)) {
+        if (dir_entry.is_regular_file()) {
+            std::string path_str = dir_entry.path().string();
+            
+            if (dir_entry.path().filename() == "EngineCoreCompilerWrapper.cpp" || is_generated_or_build_path(path_str)) {
+                continue;
+            }
 
-                    for (char c : line) {
-                        if (c == '{') brace_depth++;
-                        if (c == '}') {
-                            brace_depth--;
-                            if (brace_depth <= 0) {
-                                current_function = "";
-                                inside_hot_loop = false;
-                            }
-                        }
-                    }
+            std::string ext = dir_entry.path().extension().string();
+            if (ext == ".cpp" || ext == ".h" || ext == ".hpp" || ext == ".cc") {
+                std::ifstream t(dir_entry.path());
+                if (!t.is_open()) continue;
 
-                    if (line.find("void ") != std::string::npos || line.find("int ") != std::string::npos || 
-                        line.find("JNIEXPORT") != std::string::npos || line.find("extern \"C\"") != std::string::npos ||
-                        line.find("nativeInit") != std::string::npos || line.find("onCreate") != std::string::npos) {
-                        current_function += " " + line;
-                    }
+                std::string file_content((std::istreambuf_iterator<char>(t)),
+                                         std::istreambuf_iterator<char>());
 
-                    if (line.find("while(") != std::string::npos || line.find("for(") != std::string::npos || 
-                        line.find("render") != std::string::npos || line.find("update") != std::string::npos) {
-                        inside_hot_loop = true;
-                    }
+                // Clang AST Frontend Action के जरिए पाथ-संवेदनशील डीप चेकिंग
+                std::vector<std::string> args = {"-fsyntax-only", "-std=c++17", "-x", "c++"};
+                bool success = clang::tooling::runToolOnCodeWithArgs(
+                    std::make_unique<VulkanSafetyAction>(),
+                    file_content,
+                    args,
+                    dir_entry.path().filename().string()
+                );
 
-                    bool is_init_func = (current_function.find("Init") != std::string::npos || 
-                                           current_function.find("constructor") != std::string::npos ||
-                                           current_function.find("onCreate") != std::string::npos);
-
-                    if (line.find("malloc(") != std::string::npos || line.find("new ") != std::string::npos) {
-                        if (!is_init_func || inside_hot_loop) {
-                            enforce_system_halt("NATIVE_CPP", "Illegal dynamic heap allocation inside run-time/hot path at line " + std::to_string(line_num), dir_entry.path().string());
-                        }
-                    }
-
-                    if (line.find("std::thread") != std::string::npos && line.find("detach") != std::string::npos) {
-                        enforce_system_halt("NATIVE_CPP", "Unsafe detached thread detected—risk of race condition/dangling pointer at line " + std::to_string(line_num), dir_entry.path().string());
-                    }
-
-                    if (line.find("TODO") != std::string::npos || line.find("{ }") != std::string::npos) {
-                        enforce_system_halt("NATIVE_CPP", "Incomplete stub or TODO found at line " + std::to_string(line_num), dir_entry.path().string());
-                    }
+                if (!success) {
+                    enforce_system_halt("NATIVE_AST_PARSER", "Deep Clang AST verification failed: Vulkan synchronization race condition or memory safety violation detected", dir_entry.path().string());
                 }
             }
         }
     }
 }
+
 
 // 2. पूरे प्रोजेक्ट की Java और Kotlin फाइलों की स्कैनिंग
 void scan_managed_sources(const fs::path& root_dir) {
