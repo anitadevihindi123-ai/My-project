@@ -1,4 +1,4 @@
- #include <iostream>
+#include <iostream>
 #include <fstream>
 #include <vector>
 #include <string>
@@ -129,9 +129,20 @@ void scan_native_sources(const fs::path& root_dir) {
                 std::string file_content((std::istreambuf_iterator<char>(t)),
                                          std::istreambuf_iterator<char>());
 
-                std::vector<std::string> args = {"-fsyntax-only", "-std=c++17", "-x", "c++"};
+                // Bulletproof automatic macro injection for any GCC/GLIBC version updates
+                std::vector<std::string> args = {
+                    "-fsyntax-only", 
+                    "-std=c++17", 
+                    "-x", "c++",
+                    "-D__GLIBC_PREREQ(x,y)=0",
+                    "-D__GNUC_PREREQ(x,y)=0",
+                    "-D__GLIBC_USE(x)=0",
+                    "-U__STRICT_ANSI__",
+                    "-D_GNU_SOURCE"
+                };
+                
                 if (!ndk_include.empty() && fs::exists(ndk_include)) {
-                    args.push_back("-I" + ndk_include);
+                    args.push_back("-isystem" + ndk_include);
                 }
 
                 bool success = clang::tooling::runToolOnCodeWithArgs(
@@ -148,6 +159,7 @@ void scan_native_sources(const fs::path& root_dir) {
         }
     }
 }
+
 
 void scan_managed_sources(const fs::path& root_dir) {
     for (auto const& dir_entry : fs::recursive_directory_iterator(root_dir)) {
