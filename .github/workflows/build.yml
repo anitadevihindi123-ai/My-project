@@ -53,6 +53,7 @@ jobs:
           -I/usr/include/llvm-18 \
           -L/usr/lib/llvm-18/lib \
           -Wl,--start-group \
+          -lclang-cpp \
           -lclangDynamicASTMatchers \
           -lclangASTMatchers \
           -lclangTooling \
@@ -66,7 +67,9 @@ jobs:
           -lclangEdit \
           -lclangLex \
           -lclangBasic \
-          $(llvm-config-18 --libs core support 2>/dev/null || true) \
+          -lclangAPINotes \
+          -lclangSupport \
+          $(llvm-config-18 --libs --ldflags core support option profiledata 2>/dev/null || true) \
           -Wl,--end-group \
           -lpthread -ldl -lz
           
