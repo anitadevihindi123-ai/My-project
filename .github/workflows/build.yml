@@ -26,7 +26,7 @@ jobs:
       - name: Install Native Clang and LLVM Development Tools
         run: |
           sudo apt-get update
-          sudo apt-get install -y clang-18 libclang-18-dev llvm-18 llvm-18-dev llvm-18-runtime libclang-cpp-18-dev
+          sudo apt-get install -y clang-18 libclang-18-dev llvm-18 llvm-18-dev llvm-18-runtime
 
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v3
