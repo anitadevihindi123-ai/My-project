@@ -187,7 +187,7 @@ std::thread thermalThread;
         AHardwareBuffer_Desc desc;
         AHardwareBuffer_describe(ahb, &desc);
 
-        FinalCachedImage newImg = {};
+        FinalCachedImage cachedImage = {};
         AHardwareBuffer_acquire(ahb);
 
         VkExternalMemoryImageCreateInfo extInfo = {};
