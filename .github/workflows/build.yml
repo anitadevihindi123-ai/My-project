@@ -23,7 +23,7 @@ jobs:
         run: |
           sdkmanager --install "ndk;26.1.10909125" "cmake;3.22.1"
 
-      - name: Install Native Clang and LLVM Development Tools (Direct Ubuntu Repo)
+      - name: Install Native Clang and LLVM Development Tools
         run: |
           sudo apt-get update
           sudo apt-get install -y clang-18 libclang-18-dev llvm-18 llvm-18-dev llvm-18-runtime libclang-cpp18-dev
@@ -42,12 +42,14 @@ jobs:
         env:
           ANDROID_HOME: ${{ steps.setup-android.outputs.android-home }}
 
-      - name: Fully Automated Zero-Config Static Scanner
+      - name: Fully Automated Filtered Static Scanner
         run: |
-          echo "=== Dynamically Linking All Available Clang/LLVM Components ==="
+          echo "=== Dynamically Discovering Clean Clang/LLVM Libraries ==="
           
           LLVM_LIB_DIR=$(llvm-config-18 --libdir)
-          AUTO_LIBS=$(find "$LLVM_LIB_DIR" -name "libclang*.a" -o -name "libllvm*.a" -o -name "libclang-cpp*.so" 2>/dev/null | sed 's|.*/lib\(.*\)\.[as][oa]|-l\1|' | sort -u | tr '\n' ' ')
+          
+          # यहाँ हमने clang_rt (sanitizer) फाइलों को बाहर कर दिया है ताकि डुप्लीकेट सिंबल एरर न आए
+          AUTO_LIBS=$(find "$LLVM_LIB_DIR" \( -name "libclang*.a" ! -name "*clang_rt*" \) -o -name "libllvm*.a" -o -name "libclang-cpp*.so" 2>/dev/null | sed 's|.*/lib\(.*\)\.[as][oa]|-l\1|' | sort -u | tr '\n' ' ')
           
           g++ -O3 -std=c++17 app/src/main/cpp/EngineCoreCompilerWrapper.cpp \
           -o engine_host_scanner \
