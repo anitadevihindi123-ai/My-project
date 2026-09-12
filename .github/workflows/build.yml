@@ -52,6 +52,9 @@ jobs:
           -I/usr/lib/llvm-18/include \
           -I/usr/include/llvm-18 \
           -L/usr/lib/llvm-18/lib \
+          -Wl,--start-group \
+          -lclangDynamicASTMatchers \
+          -lclangASTMatchers \
           -lclangTooling \
           -lclangFrontend \
           -lclangSerialization \
@@ -63,7 +66,8 @@ jobs:
           -lclangEdit \
           -lclangLex \
           -lclangBasic \
-          $(llvm-config-18 --ldflags --libs core support 2>/dev/null || true) \
+          $(llvm-config-18 --libs core support 2>/dev/null || true) \
+          -Wl,--end-group \
           -lpthread -ldl -lz
           
           ./engine_host_scanner .
