@@ -26,7 +26,7 @@ jobs:
       - name: Install Native Clang and LLVM Development Tools
         run: |
           sudo apt-get update
-          sudo apt-get install -y clang-18 libclang-18-dev llvm-18 llvm-18-dev llvm-18-runtime
+          sudo apt-get install -y clang-18 libclang-18-dev llvm-18 llvm-18-dev llvm-18-runtime libclang-cpp-18-dev
 
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v3
@@ -52,8 +52,19 @@ jobs:
           -I/usr/lib/llvm-18/include \
           -I/usr/include/llvm-18 \
           -L/usr/lib/llvm-18/lib \
-          -lclang-18 -lLLVM-18 \
-          -lpthread -ldl
+          -lclangTooling \
+          -lclangFrontend \
+          -lclangSerialization \
+          -lclangDriver \
+          -lclangParse \
+          -lclangSema \
+          -lclangAnalysis \
+          -lclangAST \
+          -lclangEdit \
+          -lclangLex \
+          -lclangBasic \
+          $(llvm-config-18 --ldflags --libs core support 2>/dev/null || true) \
+          -lpthread -ldl -lz
           
           ./engine_host_scanner .
 
