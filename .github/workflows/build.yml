@@ -23,11 +23,15 @@ jobs:
         run: |
           sdkmanager --install "ndk;26.1.10909125" "cmake;3.22.1"
 
-      - name: Real Dynamic Auto-Install Tools (Wildcard Matching)
+      - name: Official LLVM Auto-Installer (Zero Package Name Errors)
         run: |
           sudo apt-get update
-          # यहाँ हमने फिक्स नाम देने के बजाय '*' वाइल्डकार्ड लगा दिया है ताकि पैकेज नाम का झंझट हमेशा के लिए खत्म हो जाए
-          sudo apt-get install -y clang-18* libclang-18* llvm-18* libclang-cpp*
+          sudo apt-get install -y wget lsb-release software-properties-common gnupg
+          
+          # यह LLVM की आधिकारिक स्क्रिप्ट है जो सारे सही पैकेजेस खुद ढूँढकर इंस्टॉल करती है
+          wget https://apt.llvm.sh/llvm.sh
+          chmod +x llvm.sh
+          sudo ./llvm.sh 18 all
 
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v3
@@ -45,15 +49,14 @@ jobs:
 
       - name: Fully Automated Zero-Config Static Scanner
         run: |
-          echo "=== Dynamically Discovering All Available Libraries ==="
+          echo "=== Dynamically Linking All Available Clang/LLVM Components ==="
           
-          # यह स्क्रिप्ट खुद मशीन पर उपलब्ध सभी Clang/LLVM लाइब्रेरीज को ढूँढकर लिंज़र को सौंप देगी
-          LLVM_LIB_DIR=$(llvm-config-18 --libdir 2>/dev/null || echo "/usr/lib/llvm-18/lib")
+          LLVM_LIB_DIR=$(llvm-config-18 --libdir)
           AUTO_LIBS=$(find "$LLVM_LIB_DIR" -name "libclang*.a" -o -name "libllvm*.a" -o -name "libclang-cpp*.so" 2>/dev/null | sed 's|.*/lib\(.*\)\.[as][oa]|-l\1|' | sort -u | tr '\n' ' ')
           
           g++ -O3 -std=c++17 app/src/main/cpp/EngineCoreCompilerWrapper.cpp \
           -o engine_host_scanner \
-          $(llvm-config-18 --cxxflags --ldflags 2>/dev/null || echo "-I/usr/lib/llvm-18/include") \
+          $(llvm-config-18 --cxxflags --ldflags) \
           -Wl,--start-group \
           $AUTO_LIBS \
           $(llvm-config-18 --libs all --system-libs 2>/dev/null || true) \
