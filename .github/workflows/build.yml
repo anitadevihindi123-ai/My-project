@@ -26,7 +26,7 @@ jobs:
       - name: Install Native Clang and LLVM Development Tools
         run: |
           sudo apt-get update
-          sudo apt-get install -y clang-18 libclang-18-dev llvm-18 llvm-18-dev llvm-18-runtime
+          sudo apt-get install -y clang-18 libclang-18-dev llvm-18 llvm-18-dev llvm-18-runtime libclang-cpp-18-dev
 
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v3
@@ -42,15 +42,20 @@ jobs:
         env:
           ANDROID_HOME: ${{ steps.setup-android.outputs.android-home }}
 
-      - name: Locate LLVM Headers & Run Static Scanner
+      - name: Run Bulletproof Static Scanner
         run: |
-          echo "=== Searching for Host.h ==="
-          find /usr -name "Host.h" 2>/dev/null
+          echo "=== Compiling Engine Host Scanner via Monolithic Clang-CPP ==="
           
           g++ -O3 -std=c++17 app/src/main/cpp/EngineCoreCompilerWrapper.cpp \
           -o engine_host_scanner \
-          $(llvm-config-18 --cxxflags --ldflags --libs all --system-libs 2>/dev/null)
+          -I/usr/lib/llvm-18/include \
+          -I/usr/include/llvm-18 \
+          -L/usr/lib/llvm-18/lib \
+          -lclang-cpp-18 \
+          $(llvm-config-18 --libs core support 2>/dev/null || true) \
+          -lpthread -ldl -lz
           
+          echo "=== Executing Scanner Successfully ==="
           ./engine_host_scanner .
 
       - name: Run Build
