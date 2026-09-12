@@ -92,6 +92,10 @@ public:
 };
 
 void scan_native_sources(const fs::path& root_dir) {
+    // एंड्रॉइड NDK हेडर पाथ स्वतः ढूँढना ताकि jni.h फाइल मिल सके
+    const char* android_home_env = std::getenv("ANDROID_HOME");
+    std::string ndk_include = android_home_env ? std::string(android_home_env) + "/ndk/26.1.10909125/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/include" : "";
+
     for (auto const& dir_entry : fs::recursive_directory_iterator(root_dir)) {
         if (dir_entry.is_regular_file()) {
             std::string path_str = dir_entry.path().string();
@@ -110,6 +114,10 @@ void scan_native_sources(const fs::path& root_dir) {
                                          std::istreambuf_iterator<char>());
 
                 std::vector<std::string> args = {"-fsyntax-only", "-std=c++17", "-x", "c++"};
+                if (!ndk_include.empty() && fs::exists(ndk_include)) {
+                    args.push_back("-I" + ndk_include);
+                }
+
                 bool success = clang::tooling::runToolOnCodeWithArgs(
                     std::make_unique<VulkanSafetyAction>(),
                     file_content,
