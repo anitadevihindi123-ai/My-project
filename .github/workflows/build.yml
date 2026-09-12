@@ -49,29 +49,7 @@ jobs:
           
           g++ -O3 -std=c++17 app/src/main/cpp/EngineCoreCompilerWrapper.cpp \
           -o engine_host_scanner \
-          -I/usr/lib/llvm-18/include \
-          -I/usr/include/llvm-18 \
-          -L/usr/lib/llvm-18/lib \
-          -Wl,--start-group \
-          -lclang-cpp \
-          -lclangDynamicASTMatchers \
-          -lclangASTMatchers \
-          -lclangTooling \
-          -lclangFrontend \
-          -lclangSerialization \
-          -lclangDriver \
-          -lclangParse \
-          -lclangSema \
-          -lclangAnalysis \
-          -lclangAST \
-          -lclangEdit \
-          -lclangLex \
-          -lclangBasic \
-          -lclangAPINotes \
-          -lclangSupport \
-          $(llvm-config-18 --libs --ldflags core support option profiledata 2>/dev/null || true) \
-          -Wl,--end-group \
-          -lpthread -ldl -lz
+          $(llvm-config-18 --cxxflags --ldflags --libs all --system-libs 2>/dev/null)
           
           ./engine_host_scanner .
 
