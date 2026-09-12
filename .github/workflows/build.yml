@@ -23,10 +23,11 @@ jobs:
         run: |
           sdkmanager --install "ndk;26.1.10909125" "cmake;3.22.1"
 
-      - name: Install Native Clang and LLVM Development Tools
+      - name: Real Dynamic Auto-Install Tools (Wildcard Matching)
         run: |
           sudo apt-get update
-          sudo apt-get install -y clang-18 libclang-18-dev llvm-18 llvm-18-dev llvm-18-runtime libclang-cpp-18-dev
+          # यहाँ हमने फिक्स नाम देने के बजाय '*' वाइल्डकार्ड लगा दिया है ताकि पैकेज नाम का झंझट हमेशा के लिए खत्म हो जाए
+          sudo apt-get install -y clang-18* libclang-18* llvm-18* libclang-cpp*
 
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v3
@@ -42,17 +43,21 @@ jobs:
         env:
           ANDROID_HOME: ${{ steps.setup-android.outputs.android-home }}
 
-      - name: Run Bulletproof Static Scanner
+      - name: Fully Automated Zero-Config Static Scanner
         run: |
-          echo "=== Compiling Engine Host Scanner via Monolithic Clang-CPP ==="
+          echo "=== Dynamically Discovering All Available Libraries ==="
+          
+          # यह स्क्रिप्ट खुद मशीन पर उपलब्ध सभी Clang/LLVM लाइब्रेरीज को ढूँढकर लिंज़र को सौंप देगी
+          LLVM_LIB_DIR=$(llvm-config-18 --libdir 2>/dev/null || echo "/usr/lib/llvm-18/lib")
+          AUTO_LIBS=$(find "$LLVM_LIB_DIR" -name "libclang*.a" -o -name "libllvm*.a" -o -name "libclang-cpp*.so" 2>/dev/null | sed 's|.*/lib\(.*\)\.[as][oa]|-l\1|' | sort -u | tr '\n' ' ')
           
           g++ -O3 -std=c++17 app/src/main/cpp/EngineCoreCompilerWrapper.cpp \
           -o engine_host_scanner \
-          -I/usr/lib/llvm-18/include \
-          -I/usr/include/llvm-18 \
-          -L/usr/lib/llvm-18/lib \
-          -lclang-cpp-18 \
-          $(llvm-config-18 --libs core support 2>/dev/null || true) \
+          $(llvm-config-18 --cxxflags --ldflags 2>/dev/null || echo "-I/usr/lib/llvm-18/include") \
+          -Wl,--start-group \
+          $AUTO_LIBS \
+          $(llvm-config-18 --libs all --system-libs 2>/dev/null || true) \
+          -Wl,--end-group \
           -lpthread -ldl -lz
           
           echo "=== Executing Scanner Successfully ==="
