@@ -11,15 +11,16 @@
 #include <clang/AST/ASTConsumer.h>
 #include <clang/AST/RecursiveASTVisitor.h>
 #include <clang/Frontend/FrontendAction.h>
+#include <clang/Basic/SourceManager.h>
 
 namespace fs = std::filesystem;
 
 static bool g_ast_violation_found = false;
 static std::string g_current_scan_file = "";
 
-void enforce_system_halt(const std::string& layer, const std::string& error_msg, const std::string& file_path) {
+void enforce_system_halt(const std::string& layer, const std::string& error_msg, const std::string& file_path, unsigned int line_num = 0) {
     std::cerr << "\n[FATAL SYSTEM HALT][" << layer << "] Critical Violation Detected!\n"
-              << "-> File: " << file_path << "\n"
+              << "-> File: " << file_path << (line_num > 0 ? ":" + std::to_string(line_num) : "") << "\n"
               << "-> Reason: " << error_msg << "\n"
               << "-> Status: Entire project build permanently aborted. Zero tolerance.\n";
     std::exit(666); 
@@ -33,7 +34,11 @@ bool is_generated_or_build_path(const std::string& path_str) {
 }
 
 class VulkanSafetyVisitor : public clang::RecursiveASTVisitor<VulkanSafetyVisitor> {
+private:
+    clang::ASTContext *ASTContextPtr;
 public:
+    explicit VulkanSafetyVisitor(clang::ASTContext *Context) : ASTContextPtr(Context) {}
+
     bool VisitCallExpr(clang::CallExpr *Expr) {
         if (const auto *Decl = Expr->getDirectCallee()) {
             std::string funcName = Decl->getNameAsString();
@@ -44,7 +49,12 @@ public:
             
             if (funcName == "malloc" || funcName == "calloc" || funcName == "realloc") {
                 g_ast_violation_found = true;
-                enforce_system_halt("NATIVE_AST_AST", "Illegal dynamic heap allocation function call detected in native runtime path", g_current_scan_file);
+                
+                clang::SourceLocation Loc = Expr->getBeginLoc();
+                clang::FullSourceLoc FullLoc(Loc, ASTContextPtr->getSourceManager());
+                unsigned int line_num = FullLoc.isValid() ? FullLoc.getSpellingLineNumber() : 0;
+                
+                enforce_system_halt("NATIVE_AST_AST", "Illegal dynamic heap allocation function call detected in native runtime path", g_current_scan_file, line_num);
             }
         }
         return true;
@@ -52,7 +62,12 @@ public:
     
     bool VisitCXXNewExpr(clang::CXXNewExpr *NewExpr) {
         g_ast_violation_found = true;
-        enforce_system_halt("NATIVE_AST_AST", "Raw C++ 'new' heap allocation prohibited under zero-tolerance policy", g_current_scan_file);
+        
+        clang::SourceLocation Loc = NewExpr->getBeginLoc();
+        clang::FullSourceLoc FullLoc(Loc, ASTContextPtr->getSourceManager());
+        unsigned int line_num = FullLoc.isValid() ? FullLoc.getSpellingLineNumber() : 0;
+        
+        enforce_system_halt("NATIVE_AST_AST", "Raw C++ 'new' heap allocation prohibited under zero-tolerance policy", g_current_scan_file, line_num);
         return true;
     }
 };
@@ -61,6 +76,8 @@ class VulkanSafetyConsumer : public clang::ASTConsumer {
 private:
     VulkanSafetyVisitor Visitor;
 public:
+    explicit VulkanSafetyConsumer(clang::ASTContext *Context) : Visitor(Context) {}
+    
     void HandleTranslationUnit(clang::ASTContext &Context) override {
         Visitor.TraverseDecl(Context.getTranslationUnitDecl());
     }
@@ -70,7 +87,7 @@ class VulkanSafetyAction : public clang::ASTFrontendAction {
 public:
     std::unique_ptr<clang::ASTConsumer> CreateASTConsumer(
         clang::CompilerInstance &CI, llvm::StringRef file) override {
-        return std::make_unique<VulkanSafetyConsumer>();
+        return std::make_unique<VulkanSafetyConsumer>(&CI.getASTContext());
     }
 };
 
@@ -131,17 +148,17 @@ void scan_managed_sources(const fs::path& root_dir) {
                         inside_loop = true;
                     }
                     if (inside_loop && line.find("new ") != std::string::npos) {
-                        enforce_system_halt("MANAGED_JVM", "Object allocation inside hot loop will trigger GC pause", path_str);
+                        enforce_system_halt("MANAGED_JVM", "Object allocation inside hot loop will trigger GC pause", path_str, line_num);
                     }
 
                     bool is_db_file = (filename == "AppDatabase.java");
 
                     if (!is_db_file && line.find("synchronized") != std::string::npos) {
-                        enforce_system_halt("MANAGED_JVM", "Unsafe thread lock detected", path_str);
+                        enforce_system_halt("MANAGED_JVM", "Unsafe thread lock detected", path_str, line_num);
                     }
 
                     if (line.find("Thread.sleep") != std::string::npos) {
-                        enforce_system_halt("MANAGED_JVM", "Blocking sleep detected", path_str);
+                        enforce_system_halt("MANAGED_JVM", "Blocking sleep detected", path_str, line_num);
                     }
 
                     if (line.find("}") != std::string::npos) {
@@ -184,4 +201,3 @@ int main(int argc, char* argv[]) {
     std::cout << "[ENGINE MASTER GUARD SUCCESS] Absolute zero errors found. Proceeding to compilation.\n";
     return 0;
 }
-
