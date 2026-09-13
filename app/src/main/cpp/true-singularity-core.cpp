@@ -1,6 +1,5 @@
 #pragma clang diagnostic ignored "-Wunguarded-availability"
 #include <jni.h>
-#include <string>
 #include <atomic>
 #include <vector>
 #include <unordered_map>
