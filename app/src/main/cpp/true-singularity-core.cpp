@@ -942,10 +942,10 @@ Java_com_my_newproject_truesingularityclass_nativeInitAssetManager(
 extern "C" JNIEXPORT void JNICALL
 Java_com_my_newproject_truesingularityclass_nativeDestroyMasterEngine(
         JNIEnv *env, jobject thiz) {
-    if (g_finalEngine) {
-        delete g_finalEngine;
-        g_finalEngine = nullptr;
-    }
+    if (g_engineInitialized) {
+    g_engineInitialized = false;
+    g_finalEngine = nullptr;
+  }
 }
 extern "C" JNIEXPORT void JNICALL
 Java_com_my_newproject_truesingularityclass_nativeUpdateViewMatrix(
