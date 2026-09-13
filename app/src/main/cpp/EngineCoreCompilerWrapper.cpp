@@ -34,38 +34,40 @@ bool is_generated_or_build_path(const std::string& path_str) {
 }
 
 class IroncladEngineSafetyVisitor : public clang::RecursiveASTVisitor<IroncladEngineSafetyVisitor> {
-public:
-    // यह सिर्फ असली C++ 'new' ऑपरेटर को पकड़ेगा, वेरिएबल नाम जैसे newImg को इग्नोर करेगा
-    bool VisitCXXNewExpr(clang::CXXNewExpr *node) {
-        if (node) {
-            g_ast_violation_found = true;
-        }
-        return true;
-    }
-
-    // वेरिएबल या फंक्शन के नामों को केवल सिंबल के रूप में ट्रीट करेगा
-    bool VisitDeclRefExpr(clang::DeclRefExpr *node) {
-        return true;
-    }
-};
-
-
-    bool VisitTranslationUnitDecl(clang::TranslationUnitDecl *D) {
-        if (local_ref_count > 10) {
-            enforce_system_halt("JNI_LIFECYCLE", "Unbalanced JNI reference creation detected across compilation unit.", g_current_scan_file);
-        }
-        return true;
-    }
-
 private:
-    void trigger_violation(clang::Stmt *StmtPtr, const std::string& msg) {
+    clang::ASTContext *ASTContextPtr;
+    int local_ref_count = 0;
+
+    void trigger_violation(clang::Stmt *StmtPtr, const std::string &msg) {
         g_ast_violation_found = true;
         clang::SourceLocation Loc = StmtPtr->getBeginLoc();
         clang::FullSourceLoc FullLoc(Loc, ASTContextPtr->getSourceManager());
         unsigned int line_num = FullLoc.isValid() ? FullLoc.getSpellingLineNumber() : 0;
         enforce_system_halt("IRONCLAD_AST_ANALYZER", msg, g_current_scan_file, line_num);
     }
+
+public:
+    explicit IroncladEngineSafetyVisitor(clang::ASTContext *Context) : ASTContextPtr(Context) {}
+
+    bool VisitCXXNewExpr(clang::CXXNewExpr *node) {
+        if (node) {
+            trigger_violation(node, "Forbidden raw C++ 'new' operator detected. Enforcing safe memory arenas and smart pointers.");
+        }
+        return true;
+    }
+
+    bool VisitDeclRefExpr(clang::DeclRefExpr *node) {
+        return true;
+    }
+
+    bool VisitTranslationUnitDecl(clang::TranslationUnitDecl *D) {
+        if (local_ref_count > 10) {
+            enforce_system_halt("JNI_LIFECYCLE", "Unbalanced JNI reference creation detected across compilation unit.", g_current_scan_file, 0);
+        }
+        return true;
+    }
 };
+
 
 class IroncladEngineSafetyConsumer : public clang::ASTConsumer {
 private:
