@@ -108,24 +108,24 @@ void scan_native_sources(const fs::path& root_dir) {
 
                 std::string file_content((std::istreambuf_iterator<char>(t)),
                                          std::istreambuf_iterator<char>());
-
-
-                std::vector<std::string> args = {
-    "-fsyntax-only", 
-    "-std=c++17", 
-    "-x", "c++",
-    "-D__GLIBC_PREREQ(x,y)=0",
-    "-D__GNUC_PREREQ(x,y)=0",
-    "-D__GLIBC_USE(x)=0",
-    "-U__STRICT_ANSI__",
-    "-D_GNU_SOURCE",
-    "-D__THROW=",
-    "-D__wur=",
-    "-D__nonnull(x)=",
-    "-D__attribute_pure__=",
-    "-D__attribute_const__=",
-    "-D__attribute_warn_unused_result__="
-};
+      std::vector<std::string> args = {
+        "-fsyntax-only", 
+        "-std=c++17", 
+        "-x", "c++",
+        "-D__GLIBC_PREREQ(x,y)=0",
+        "-D__GNUC_PREREQ(x,y)=0",
+        "-D__GLIBC_USE(x)=0",
+        "-U__STRICT_ANSI__",
+        "-D_GNU_SOURCE",
+        "-D__THROW=",
+        "-D__wur=",
+        "-D__nonnull(x)=",
+        "-D__attribute_pure__=",
+        "-D__attribute_const__=",
+        "-D__attribute_warn_unused_result__=",
+        "-D_LIBCPP_HAS_NO_PRAGMA_SYSTEM_HEADER",
+        "-D__CORRECT_ISO_CPP_STDLIB_H_PROTO"
+    };
 
                 
                 if (!ndk_include.empty() && fs::exists(ndk_include)) {
