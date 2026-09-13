@@ -1,8 +1,5 @@
 #pragma clang diagnostic ignored "-Wunguarded-availability"
 #include <jni.h>
-#include <atomic>
-#include <vector>
-#include <string>
 #include <unordered_map>
 #include <mutex>
 #include <shared_mutex>
