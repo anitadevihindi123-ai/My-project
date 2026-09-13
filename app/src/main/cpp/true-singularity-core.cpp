@@ -178,7 +178,8 @@ uint32_t swapchainImageCount = 0;
 std::atomic<bool> thermalRunning{true};
 int thermalFd = -1;
 std::thread thermalThread;
-    VkImageView GetOrCreateImageViewFromAHB(AHardwareBuffer* ahb) {
+
+     VkImageView GetOrCreateImageViewFromAHB(AHardwareBuffer* ahb) {
         auto it = ringBufferCache.find(ahb);
         if (it != ringBufferCache.end() && it->second.vkImageView != VK_NULL_HANDLE) {
             return it->second.vkImageView;
@@ -187,13 +188,13 @@ std::thread thermalThread;
         AHardwareBuffer_Desc desc;
         AHardwareBuffer_describe(ahb, &desc);
 
-                FinalCachedImage newImg = {};
+        FinalCachedImage newImg = {};
         AHardwareBuffer_acquire(ahb);
+
         const native_handle_t* nativeHandle = AHardwareBuffer_getNativeHandle(ahb);
         if (nativeHandle && nativeHandle->numFds > 0) {
             newImg.kernelDmaBufFd = nativeHandle->data[0];
         }
-        AHardwareBuffer_acquire(ahb);
 
         VkExternalMemoryImageCreateInfo extInfo = {};
         extInfo.sType = VK_STRUCTURE_TYPE_EXTERNAL_MEMORY_IMAGE_CREATE_INFO;
@@ -216,34 +217,62 @@ std::thread thermalThread;
         imageInfo.initialLayout = VK_IMAGE_LAYOUT_GENERAL;
 
         VK_CHECK(vkCreateImage(device, &imageInfo, nullptr, &newImg.vkImage));
-           auto fpGetProps = reinterpret_cast<PFN_vkGetAndroidHardwareBufferPropertiesANDROID>(
-                vkGetDeviceProcAddr(device, "vkGetAndroidHardwareBufferPropertiesANDROID")
-            );
 
-            if (fpGetProps) {
-                VkAndroidHardwareBufferPropertiesANDROID ahbProps = {};
-                ahbProps.sType = VK_STRUCTURE_TYPE_ANDROID_HARDWARE_BUFFER_PROPERTIES_ANDROID;
+        auto fpGetProps = reinterpret_cast<PFN_vkGetAndroidHardwareBufferPropertiesANDROID>(
+            vkGetDeviceProcAddr(device, "vkGetAndroidHardwareBufferPropertiesANDROID")
+        );
 
-                if (fpGetProps(device, ahb, &ahbProps) == VK_SUCCESS) {
-                    VkImportAndroidHardwareBufferInfoANDROID importHb = {};
-                    importHb.sType = VK_STRUCTURE_TYPE_IMPORT_ANDROID_HARDWARE_BUFFER_INFO_ANDROID;
-                    importHb.buffer = ahb;
+        if (fpGetProps) {
+            VkAndroidHardwareBufferPropertiesANDROID ahbProps = {};
+            ahbProps.sType = VK_STRUCTURE_TYPE_ANDROID_HARDWARE_BUFFER_PROPERTIES_ANDROID;
 
-                    VkMemoryDedicatedAllocateInfo dedicatedAllocInfo = {};
-                    dedicatedAllocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_DEDICATED_ALLOCATE_INFO;
-                    dedicatedAllocInfo.pNext = &importHb;
-                    dedicatedAllocInfo.image = newImg.vkImage;
+            if (fpGetProps(device, ahb, &ahbProps) == VK_SUCCESS) {
+                VkImportAndroidHardwareBufferInfoANDROID importHb = {};
+                importHb.sType = VK_STRUCTURE_TYPE_IMPORT_ANDROID_HARDWARE_BUFFER_INFO_ANDROID;
+                importHb.buffer = ahb;
 
-                    VkPhysicalDeviceMemoryProperties memProps;
-                    vkGetPhysicalDeviceMemoryProperties(physicalDevice, &memProps);
+                VkMemoryDedicatedAllocateInfo dedicatedAllocInfo = {};
+                dedicatedAllocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_DEDICATED_ALLOCATE_INFO;
+                dedicatedAllocInfo.pNext = &importHb;
+                dedicatedAllocInfo.image = newImg.vkImage;
 
-                    uint32_t memTypeIdx = 0;
-                    for (uint32_t i = 0; i < memProps.memoryTypeCount; i++) {
-                        if ((ahbProps.memoryTypeBits & (1 << i))) {
-                            memTypeIdx = i;
-                            break;
-                        }
+                VkMemoryAllocateInfo allocInfo = {};
+                allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+                allocInfo.allocationSize = ahbProps.allocationSize;
+                allocInfo.pNext = &dedicatedAllocInfo;
+
+                uint32_t memoryTypeIndex = 0;
+                VkPhysicalDeviceMemoryProperties memProperties;
+                vkGetPhysicalDeviceMemoryProperties(physicalDevice, &memProperties);
+                for (uint32_t i = 0; i < memProperties.memoryTypeCount; ++i) {
+                    if ((ahbProps.memoryTypeBits & (1 << i))) {
+                        memoryTypeIndex = i;
+                        break;
                     }
+                }
+                allocInfo.memoryTypeIndex = memoryTypeIndex;
+
+                VK_CHECK(vkAllocateMemory(device, &allocInfo, nullptr, &newImg.vkDeviceMemory));
+                VK_CHECK(vkBindImageMemory(device, newImg.vkImage, newImg.vkDeviceMemory, 0));
+            }
+        }
+
+        VkImageViewCreateInfo viewInfo = {};
+        viewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+        viewInfo.image = newImg.vkImage;
+        viewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+        viewInfo.format = VK_FORMAT_R8G8B8A8_UNORM;
+        viewInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+        viewInfo.subresourceRange.baseMipLevel = 0;
+        viewInfo.subresourceRange.levelCount = 1;
+        viewInfo.subresourceRange.baseArrayLayer = 0;
+        viewInfo.subresourceRange.layerCount = 1;
+
+        VK_CHECK(vkCreateImageView(device, &viewInfo, nullptr, &newImg.vkImageView));
+
+        ringBufferCache[ahb] = newImg;
+        return newImg.vkImageView;
+    }
 
                     VkMemoryAllocateInfo allocInfo = {};
                     allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
