@@ -187,7 +187,12 @@ std::thread thermalThread;
         AHardwareBuffer_Desc desc;
         AHardwareBuffer_describe(ahb, &desc);
 
-        FinalCachedImage cachedImageInge(ahb);
+                FinalCachedImage newImg = {};
+        AHardwareBuffer_acquire(ahb);
+        const native_handle_t* nativeHandle = AHardwareBuffer_getNativeHandle(ahb);
+        if (nativeHandle && nativeHandle->numFds > 0) {
+            newImg.kernelDmaBufFd = nativeHandle->data[0];
+        }
         AHardwareBuffer_acquire(ahb);
 
         VkExternalMemoryImageCreateInfo extInfo = {};
