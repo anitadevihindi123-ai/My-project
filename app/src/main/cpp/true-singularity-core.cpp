@@ -418,37 +418,42 @@ public:
             "/sys/devices/virtual/thermal/thermal_zone0/temp"
         };
 
-        for (const char* path : possiblePaths) {
-            thermalFd = open(path, O_RDONLY | O_NONBLOCK);
+        for (int i = 0; i < 4; ++i) {
+            thermalFd = open(possiblePaths[i], O_RDONLY | O_NONBLOCK);
             if (thermalFd >= 0) {
-                break; // जैसे ही सही थर्मल जोन फाइल मिल जाएगी, लूप ब्रेक हो जाएगा
+                break; 
             }
         }
 
-        thermalThread = std::thread([this]() {
+        // **[std::thread की जगह बेयर-मेटल pthread_create]**
+        auto thermalRoutine = [](void* arg) -> void* {
+            PureMetalEngine* engine = static_cast<PureMetalEngine*>(arg);
             char buffer[64];
             struct pollfd pfd;
-            pfd.fd = thermalFd;
+            pfd.fd = engine->thermalFd;
             pfd.events = POLLPRI | POLLERR;
 
-            while (thermalRunning) {
-                if (thermalFd >= 0) {
+            // **[GCC Raw Atomic Load]**
+            while (__atomic_load_n(&engine->thermalRunning, __ATOMIC_ACQUIRE)) {
+                if (engine->thermalFd >= 0) {
                     int ret = poll(&pfd, 1, 2000);
                     if (ret >= 0) {
-                        lseek(thermalFd, 0, SEEK_SET);
-                        int bytes = read(thermalFd, buffer, sizeof(buffer) - 1);
+                        lseek(engine->thermalFd, 0, SEEK_SET);
+                        int bytes = read(engine->thermalFd, buffer, sizeof(buffer) - 1);
                         if (bytes > 0) {
                             buffer[bytes] = '\0';
-                            try {
-                                float temp = std::stof(buffer) / 1000.0f;
-                                cachedTemperature.store(temp, std::memory_order_relaxed);
-                            } catch (...) {}
+                            // **[std::stof की जगह C-style atof - Zero STL Exception Overhead]**
+                            float temp = static_cast<float>(atof(buffer)) / 1000.0f;
+                            __atomic_store_n(&engine->cachedTemperature, temp, __ATOMIC_RELEASE);
                         }
                     }
                 }
-                std::this_thread::sleep_for(std::chrono::seconds(2));
+                usleep(2000000); // 2 seconds sleep (2,000,000 microseconds)
             }
-        });
+            return nullptr;
+        };
+
+        pthread_create(&thermalThreadId, nullptr, thermalRoutine, this);
     }
 
     uint32_t readKernelThermalRegister() {
