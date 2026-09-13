@@ -107,17 +107,24 @@ void scan_native_sources(const fs::path& root_dir) {
                 std::string file_content((std::istreambuf_iterator<char>(t)),
                                          std::istreambuf_iterator<char>());
 
-                // Bulletproof automatic macro injection for any GCC/GLIBC version updates
+
                 std::vector<std::string> args = {
-                    "-fsyntax-only", 
-                    "-std=c++17", 
-                    "-x", "c++",
-                    "-D__GLIBC_PREREQ(x,y)=0",
-                    "-D__GNUC_PREREQ(x,y)=0",
-                    "-D__GLIBC_USE(x)=0",
-                    "-U__STRICT_ANSI__",
-                    "-D_GNU_SOURCE"
-                };
+    "-fsyntax-only", 
+    "-std=c++17", 
+    "-x", "c++",
+    "-D__GLIBC_PREREQ(x,y)=0",
+    "-D__GNUC_PREREQ(x,y)=0",
+    "-D__GLIBC_USE(x)=0",
+    "-U__STRICT_ANSI__",
+    "-D_GNU_SOURCE",
+    "-D__THROW=",
+    "-D__wur=",
+    "-D__nonnull(x)=",
+    "-D__attribute_pure__=",
+    "-D__attribute_const__=",
+    "-D__attribute_warn_unused_result__="
+};
+
                 
                 if (!ndk_include.empty() && fs::exists(ndk_include)) {
                     args.push_back("-isystem" + ndk_include);
