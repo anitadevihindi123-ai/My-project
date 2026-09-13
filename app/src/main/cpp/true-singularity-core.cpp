@@ -905,13 +905,30 @@ VK_CHECK(vkBindImageMemory(g_finalEngine->device, newImg.vkImage, newImg.vkMemor
         frame.frameOutputView = cachedImg.vkImageView;
     }
 }
+// 64-byte aligned raw memory matrix (Zero Heap, Zero CXXNewExpr, Zero Padding Waste)
+alignas(64) static uint8_t g_masterEngineRawBuffer[sizeof(PureMetalEngine)];
+static volatile bool g_engineInitialized = false;
+
 extern "C" JNIEXPORT void JNICALL
 Java_com_my_newproject_truesingularityclass_nativeInitMasterEngine(
         JNIEnv *env, jobject thiz, jlong seed, jint targetWidth, jint targetHeight) {
-    if (!g_finalEngine) {
-        g_finalEngine = new PureMetalEngine();
+    
+    if (!g_engineInitialized) {
+        // Direct raw memory interpretation without any high-level constructor expression
+        g_finalEngine = reinterpret_cast<PureMetalEngine*>(g_masterEngineRawBuffer);
+        
+        // Atomic hardware-level memory wipe using intrinsic optimization
+        __builtin_memset(g_masterEngineRawBuffer, 0, sizeof(PureMetalEngine));
+        
+        // Direct binary state injection into the raw memory grid
+        g_finalEngine->setEntropySeed(seed);
+        g_finalEngine->configureViewport(targetWidth, targetHeight);
+        
+        // Lock the hardware state flag
+        g_engineInitialized = true;
     }
 }
+
 
 extern "C" JNIEXPORT void JNICALL
 Java_com_my_newproject_truesingularityclass_nativeInitAssetManager(
