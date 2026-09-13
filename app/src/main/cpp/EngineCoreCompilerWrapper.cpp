@@ -112,8 +112,6 @@ void scan_native_sources(const fs::path& root_dir) {
         "-fsyntax-only",
         "-std=c++17",
         "-x", "c++",
-        "-nostdinc",
-        "-nostdinc++",
         "-isystem", ndk_include + "/usr/include",
         "-isystem", "/usr/lib/llvm-18/lib/clang/18/include",
         "-U__STRICT_ANSI__",
