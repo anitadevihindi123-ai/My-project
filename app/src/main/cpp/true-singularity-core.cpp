@@ -148,77 +148,42 @@ public:
     FinalFrameContext frames[MAX_FRAMES_IN_FLIGHT];
     uint32_t currentFrameIndex = 0;
     VkSemaphore timelineSemaphore = VK_NULL_HANDLE;
-    volatile uint64_t globalTimelineCounter = 0;
+    std::atomic<uint64_t> globalTimelineCounter{0};
 
-    volatile float thermalLoad = 0.1f;
-    volatile float gyroShiftX = 0.0f;
-    volatile float gyroShiftY = 0.0f;
-    float viewMatrix[16] = {
+    std::atomic<float> thermalLoad{0.1f};
+    std::atomic<float> gyroShiftX{0.0f};
+    std::atomic<float> gyroShiftY{0.0f};
+        float viewMatrix[16] = {
         1.0f, 0.0f, 0.0f, 0.0f,
         0.0f, 1.0f, 0.0f, 0.0f,
         0.0f, 0.0f, 1.0f, 0.0f,
         0.0f, 0.0f, 0.0f, 1.0f
     };
 
-    // **[रॉ-मेटल फिक्स-साइज रिंग बफर - Zero STL Map]**
-    static const int MAX_CACHE_SLOTS = 16;
-    AHardwareBuffer* cacheKeys[MAX_CACHE_SLOTS] = {nullptr};
-    FinalCachedImage cacheValues[MAX_CACHE_SLOTS];
-    pthread_mutex_t poolMutex_ = PTHREAD_MUTEX_INITIALIZER;
-
-    // **[vector की जगह फिक्स रॉ एरे]**
-    VkImageView recentImageViews[8];
-    int recentImageCount = 0;
-
-    ANativeWindow* nativeWindow = nullptr;
-    VkSurfaceKHR surface = VK_NULL_HANDLE;
-    VkSwapchainKHR swapchain = VK_NULL_HANDLE;
-    
-    VkImage swapchainImages[8];
-    VkImageView swapchainImageViews[8];
-    uint32_t swapchainImageCount = 0;
-    
-    pthread_rwlock_t surfaceRwLock = PTHREAD_RWLOCK_INITIALIZER;
-    volatile bool isSurfaceActive = false;
+    std::unordered_map<AHardwareBuffer*, FinalCachedImage> ringBufferCache;
+    std::mutex poolMutex;
+    std::vector<VkImageView> recentImageViews;
+  ANativeWindow* nativeWindow = nullptr;
+VkSurfaceKHR surface = VK_NULL_HANDLE;
+VkSwapchainKHR swapchain = VK_NULL_HANDLE;
+std::vector<VkImage> swapchainImages;
+std::vector<VkImageView> swapchainImageViews;
+uint32_t swapchainImageCount = 0;
+    mutable std::shared_mutex surfaceMutex;
+    std::atomic<bool> isSurfaceActive{false};
 
     bool initialized = false;
     PFN_vkWaitSemaphores pfnVkWaitSemaphores = nullptr;
-    volatile float cachedTemperature = 45.0f;
-    volatile bool thermalRunning = true;
-    int thermalFd = -1;
-    pthread_t thermalThreadId = 0;
+    std::atomic<float> cachedTemperature{45.0f};
+std::atomic<bool> thermalRunning{true};
+int thermalFd = -1;
+std::thread thermalThread;
 
-    // **[रॉ लीनियर सर्च कैश मैकेनिज्म]**
-    FinalCachedImage* findCachedImage(AHardwareBuffer* ahb) {
-        for (int i = 0; i < MAX_CACHE_SLOTS; ++i) {
-            if (cacheKeys[i] == ahb) {
-                return &cacheValues[i];
-            }
+     VkImageView GetOrCreateImageViewFromAHB(AHardwareBuffer* ahb) {
+        auto it = ringBufferCache.find(ahb);
+        if (it != ringBufferCache.end() && it->second.vkImageView != VK_NULL_HANDLE) {
+            return it->second.vkImageView;
         }
-        return nullptr;
-    }
-
-    void insertCachedImage(AHardwareBuffer* ahb, const FinalCachedImage& img) {
-        for (int i = 0; i < MAX_CACHE_SLOTS; ++i) {
-            if (cacheKeys[i] == nullptr || cacheKeys[i] == ahb) {
-                cacheKeys[i] = ahb;
-                cacheValues[i] = img;
-                return;
-            }
-        }
-        cacheKeys[0] = ahb;
-        cacheValues[0] = img;
-    }
-
-    VkImageView GetOrCreateImageViewFromAHB(AHardwareBuffer* ahb) {
-        pthread_mutex_lock(&poolMutex_);
-        FinalCachedImage* found = findCachedImage(ahb);
-        if (found && found->vkImageView != VK_NULL_HANDLE) {
-            VkImageView imgView = found->vkImageView;
-            pthread_mutex_unlock(&poolMutex_);
-            return imgView;
-        }
-        pthread_mutex_unlock(&poolMutex_);
 
         AHardwareBuffer_Desc desc;
         AHardwareBuffer_describe(ahb, &desc);
@@ -292,7 +257,7 @@ public:
             }
         }
 
-                VkImageViewCreateInfo viewInfo = {};
+        VkImageViewCreateInfo viewInfo = {};
         viewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
         viewInfo.image = newImg.vkImage;
         viewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
@@ -305,10 +270,7 @@ public:
 
         VK_CHECK(vkCreateImageView(device, &viewInfo, nullptr, &newImg.vkImageView));
 
-        pthread_mutex_lock(&poolMutex_);
-        insertCachedImage(ahb, newImg);
-        pthread_mutex_unlock(&poolMutex_);
-
+        ringBufferCache[ahb] = newImg;
         return newImg.vkImageView;
     }
 
@@ -318,92 +280,60 @@ public:
                     allocInfo.allocationSize = ahbProps.allocationSize;
                     allocInfo.memoryTypeIndex = memTypeIdx;
 
-                    VK_CHECK(vkAllocateMemory(device, &allocInfo, nullptr, &newImg.vkDeviceMemory));
-                    VK_CHECK(vkBindImageMemory(device, newImg.vkImage, newImg.vkDeviceMemory, 0));
+                    VK_CHECK(vkAllocateMemory(device, &allocInfo, nullptr, &newImg.vkMemory));
+VK_CHECK(vkBindImageMemory(device, newImg.vkImage, newImg.vkMemory, 0));
 
-                        VkImageViewCreateInfo viewInfoSub = {};
-                        viewInfoSub.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-                        viewInfoSub.image = newImg.vkImage;
-                        viewInfoSub.viewType = VK_IMAGE_VIEW_TYPE_2D;
-                        viewInfoSub.format = VK_FORMAT_R8G8B8A8_UNORM;
-                        viewInfoSub.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-                        viewInfoSub.subresourceRange.baseMipLevel = 0;
-                        viewInfoSub.subresourceRange.levelCount = 1;
-                        viewInfoSub.subresourceRange.baseArrayLayer = 0;
-                        viewInfoSub.subresourceRange.layerCount = 1;
+                        VkImageViewCreateInfo viewInfo = {};
+                        viewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+                        viewInfo.image = newImg.vkImage;
+                        viewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+                        viewInfo.format = VK_FORMAT_R8G8B8A8_UNORM;
+                        viewInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+                        viewInfo.subresourceRange.levelCount = 1;
+                        viewInfo.subresourceRange.layerCount = 1;
 
-                        VK_CHECK(vkCreateImageView(device, &viewInfoSub, nullptr, &newImg.vkImageView));
+                        vkCreateImageView(device, &viewInfo, nullptr, &newImg.vkImageView);
                         newImg.width = desc.width;
                         newImg.height = desc.height;
                         newImg.isAllocated = true;
 
-                        pthread_mutex_lock(&poolMutex_);
-                        insertCachedImage(ahb, newImg);
-                        pthread_mutex_unlock(&poolMutex_);
-
+                        std::lock_guard<std::mutex> lock(poolMutex);
+                        ringBufferCache[ahb] = newImg;
                         return newImg.vkImageView;
                     }
                 }
             
+        
         return VK_NULL_HANDLE;
     }
 
-
-        ~PureMetalEngine() {
-        thermalRunning = false;
-        if (thermalThreadId != 0) {
-            pthread_join(thermalThreadId, nullptr);
-            thermalThreadId = 0;
-        }
-        if (thermalFd >= 0) {
-            close(thermalFd);
-            thermalFd = -1;
-        }
-        if (device != VK_NULL_HANDLE) {
+    ~PureMetalEngine() {
+       thermalRunning = false;
+if (thermalThread.joinable()) {
+    thermalThread.join();
+}
+if (thermalFd >= 0) {
+    close(thermalFd);
+    thermalFd = -1;
+}
+ if (device != VK_NULL_HANDLE) {
             vkDeviceWaitIdle(device);
-            
-            // **[रॉ-मेटल म्यूटिक्स और फिक्स-साइज एरे लूप क्लीनअप - Zero STL]**
-            pthread_mutex_lock(&poolMutex_);
-            for (int i = 0; i < MAX_CACHE_SLOTS; ++i) {
-                if (cacheKeys[i] != nullptr) {
-                    if (cacheValues[i].vkImageView != VK_NULL_HANDLE) {
-                        vkDestroyImageView(device, cacheValues[i].vkImageView, nullptr);
-                    }
-                    if (cacheValues[i].vkImage != VK_NULL_HANDLE) {
-                        vkDestroyImage(device, cacheValues[i].vkImage, nullptr);
-                    }
-                    if (cacheValues[i].vkDeviceMemory != VK_NULL_HANDLE) {
-                        vkFreeMemory(device, cacheValues[i].vkDeviceMemory, nullptr);
-                    }
-                    AHardwareBuffer_release(cacheKeys[i]);
-                    cacheKeys[i] = nullptr;
-                }
+            std::lock_guard<std::mutex> lock(poolMutex);
+            for (auto& pair : ringBufferCache) {
+                if (pair.second.vkImageView != VK_NULL_HANDLE) vkDestroyImageView(device, pair.second.vkImageView, nullptr);
+                if (pair.second.vkImage != VK_NULL_HANDLE) vkDestroyImage(device, pair.second.vkImage, nullptr);
+                if (pair.second.vkMemory != VK_NULL_HANDLE) vkFreeMemory(device, pair.second.vkMemory, nullptr);
+                if (pair.first) AHardwareBuffer_release(pair.first);
             }
-            cacheCount = 0;
-            pthread_mutex_unlock(&poolMutex_);
-
-            if (timelineSemaphore != VK_NULL_HANDLE) {
-                vkDestroySemaphore(device, timelineSemaphore, nullptr);
-            }
-            if (descriptorPool != VK_NULL_HANDLE) {
-                vkDestroyDescriptorPool(device, descriptorPool, nullptr);
-            }
-            if (computePipeline != VK_NULL_HANDLE) {
-                vkDestroyPipeline(device, computePipeline, nullptr);
-            }
-            if (pipelineLayout != VK_NULL_HANDLE) {
-                vkDestroyPipelineLayout(device, pipelineLayout, nullptr);
-            }
-            if (descriptorSetLayout != VK_NULL_HANDLE) {
-                vkDestroyDescriptorSetLayout(device, descriptorSetLayout, nullptr);
-            }
-            if (shaderModule != VK_NULL_HANDLE) {
-                vkDestroyShaderModule(device, shaderModule, nullptr);
-            }
+            ringBufferCache.clear();
+            if (timelineSemaphore != VK_NULL_HANDLE) vkDestroySemaphore(device, timelineSemaphore, nullptr);
+            if (descriptorPool != VK_NULL_HANDLE) vkDestroyDescriptorPool(device, descriptorPool, nullptr);
+            if (computePipeline != VK_NULL_HANDLE) vkDestroyPipeline(device, computePipeline, nullptr);
+            if (pipelineLayout != VK_NULL_HANDLE) vkDestroyPipelineLayout(device, pipelineLayout, nullptr);
+            if (descriptorSetLayout != VK_NULL_HANDLE) vkDestroyDescriptorSetLayout(device, descriptorSetLayout, nullptr);
+            if (shaderModule != VK_NULL_HANDLE) vkDestroyShaderModule(device, shaderModule, nullptr);
             for (int i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
-                if (frames[i].commandPool != VK_NULL_HANDLE) {
-                    vkDestroyCommandPool(device, frames[i].commandPool, nullptr);
-                }
+                if (frames[i].commandPool != VK_NULL_HANDLE) vkDestroyCommandPool(device, frames[i].commandPool, nullptr);
             }
             vkDestroyDevice(device, nullptr);
         }
@@ -421,42 +351,37 @@ public:
             "/sys/devices/virtual/thermal/thermal_zone0/temp"
         };
 
-        for (int i = 0; i < 4; ++i) {
-            thermalFd = open(possiblePaths[i], O_RDONLY | O_NONBLOCK);
+        for (const char* path : possiblePaths) {
+            thermalFd = open(path, O_RDONLY | O_NONBLOCK);
             if (thermalFd >= 0) {
-                break; 
+                break; // जैसे ही सही थर्मल जोन फाइल मिल जाएगी, लूप ब्रेक हो जाएगा
             }
         }
 
-        // **[std::thread की जगह बेयर-मेटल pthread_create]**
-        auto thermalRoutine = [](void* arg) -> void* {
-            PureMetalEngine* engine = static_cast<PureMetalEngine*>(arg);
+        thermalThread = std::thread([this]() {
             char buffer[64];
             struct pollfd pfd;
-            pfd.fd = engine->thermalFd;
+            pfd.fd = thermalFd;
             pfd.events = POLLPRI | POLLERR;
 
-            // **[GCC Raw Atomic Load]**
-            while (__atomic_load_n(&engine->thermalRunning, __ATOMIC_ACQUIRE)) {
-                if (engine->thermalFd >= 0) {
+            while (thermalRunning) {
+                if (thermalFd >= 0) {
                     int ret = poll(&pfd, 1, 2000);
                     if (ret >= 0) {
-                        lseek(engine->thermalFd, 0, SEEK_SET);
-                        int bytes = read(engine->thermalFd, buffer, sizeof(buffer) - 1);
+                        lseek(thermalFd, 0, SEEK_SET);
+                        int bytes = read(thermalFd, buffer, sizeof(buffer) - 1);
                         if (bytes > 0) {
                             buffer[bytes] = '\0';
-                            // **[std::stof की जगह C-style atof - Zero STL Exception Overhead]**
-                            float temp = static_cast<float>(atof(buffer)) / 1000.0f;
-                            __atomic_store_n(&engine->cachedTemperature, temp, __ATOMIC_RELEASE);
+                            try {
+                                float temp = std::stof(buffer) / 1000.0f;
+                                cachedTemperature.store(temp, std::memory_order_relaxed);
+                            } catch (...) {}
                         }
                     }
                 }
-                usleep(2000000); // 2 seconds sleep (2,000,000 microseconds)
+                std::this_thread::sleep_for(std::chrono::seconds(2));
             }
-            return nullptr;
-        };
-
-        pthread_create(&thermalThreadId, nullptr, thermalRoutine, this);
+        });
     }
 
     uint32_t readKernelThermalRegister() {
