@@ -289,26 +289,7 @@ public:
             }
         }
 
-        VkImageViewCreateInfo viewInfo = {};
-        viewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-        viewInfo.image = newImg.vkImage;
-        viewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
-        viewInfo.format = VK_FORMAT_R8G8B8A8_UNORM;
-        viewInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-        viewInfo.subresourceRange.levelCount = 1;
-        viewInfo.subresourceRange.layerCount = 1;
-
-        VK_CHECK(vkCreateImageView(device, &viewInfo, nullptr, &newImg.vkImageView));
-
-        pthread_mutex_lock(&poolMutex_);
-        insertCachedImage(ahb, newImg);
-        pthread_mutex_unlock(&poolMutex_);
-
-        return newImg.vkImageView;
-    }
-
-
-        VkImageViewCreateInfo viewInfo = {};
+                VkImageViewCreateInfo viewInfo = {};
         viewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
         viewInfo.image = newImg.vkImage;
         viewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
@@ -321,7 +302,10 @@ public:
 
         VK_CHECK(vkCreateImageView(device, &viewInfo, nullptr, &newImg.vkImageView));
 
-        ringBufferCache[ahb] = newImg;
+        pthread_mutex_lock(&poolMutex_);
+        insertCachedImage(ahb, newImg);
+        pthread_mutex_unlock(&poolMutex_);
+
         return newImg.vkImageView;
     }
 
@@ -331,60 +315,92 @@ public:
                     allocInfo.allocationSize = ahbProps.allocationSize;
                     allocInfo.memoryTypeIndex = memTypeIdx;
 
-                    VK_CHECK(vkAllocateMemory(device, &allocInfo, nullptr, &newImg.vkMemory));
-VK_CHECK(vkBindImageMemory(device, newImg.vkImage, newImg.vkMemory, 0));
+                    VK_CHECK(vkAllocateMemory(device, &allocInfo, nullptr, &newImg.vkDeviceMemory));
+                    VK_CHECK(vkBindImageMemory(device, newImg.vkImage, newImg.vkDeviceMemory, 0));
 
-                        VkImageViewCreateInfo viewInfo = {};
-                        viewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-                        viewInfo.image = newImg.vkImage;
-                        viewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
-                        viewInfo.format = VK_FORMAT_R8G8B8A8_UNORM;
-                        viewInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-                        viewInfo.subresourceRange.levelCount = 1;
-                        viewInfo.subresourceRange.layerCount = 1;
+                        VkImageViewCreateInfo viewInfoSub = {};
+                        viewInfoSub.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+                        viewInfoSub.image = newImg.vkImage;
+                        viewInfoSub.viewType = VK_IMAGE_VIEW_TYPE_2D;
+                        viewInfoSub.format = VK_FORMAT_R8G8B8A8_UNORM;
+                        viewInfoSub.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+                        viewInfoSub.subresourceRange.baseMipLevel = 0;
+                        viewInfoSub.subresourceRange.levelCount = 1;
+                        viewInfoSub.subresourceRange.baseArrayLayer = 0;
+                        viewInfoSub.subresourceRange.layerCount = 1;
 
-                        vkCreateImageView(device, &viewInfo, nullptr, &newImg.vkImageView);
+                        VK_CHECK(vkCreateImageView(device, &viewInfoSub, nullptr, &newImg.vkImageView));
                         newImg.width = desc.width;
                         newImg.height = desc.height;
                         newImg.isAllocated = true;
 
-                        std::lock_guard<std::mutex> lock(poolMutex);
-                        ringBufferCache[ahb] = newImg;
+                        pthread_mutex_lock(&poolMutex_);
+                        insertCachedImage(ahb, newImg);
+                        pthread_mutex_unlock(&poolMutex_);
+
                         return newImg.vkImageView;
                     }
                 }
             
-        
         return VK_NULL_HANDLE;
     }
 
-    ~PureMetalEngine() {
-       thermalRunning = false;
-if (thermalThread.joinable()) {
-    thermalThread.join();
-}
-if (thermalFd >= 0) {
-    close(thermalFd);
-    thermalFd = -1;
-}
- if (device != VK_NULL_HANDLE) {
+
+        ~PureMetalEngine() {
+        thermalRunning = false;
+        if (thermalThreadId != 0) {
+            pthread_join(thermalThreadId, nullptr);
+            thermalThreadId = 0;
+        }
+        if (thermalFd >= 0) {
+            close(thermalFd);
+            thermalFd = -1;
+        }
+        if (device != VK_NULL_HANDLE) {
             vkDeviceWaitIdle(device);
-            std::lock_guard<std::mutex> lock(poolMutex);
-            for (auto& pair : ringBufferCache) {
-                if (pair.second.vkImageView != VK_NULL_HANDLE) vkDestroyImageView(device, pair.second.vkImageView, nullptr);
-                if (pair.second.vkImage != VK_NULL_HANDLE) vkDestroyImage(device, pair.second.vkImage, nullptr);
-                if (pair.second.vkMemory != VK_NULL_HANDLE) vkFreeMemory(device, pair.second.vkMemory, nullptr);
-                if (pair.first) AHardwareBuffer_release(pair.first);
+            
+            // **[रॉ-मेटल म्यूटिक्स और फिक्स-साइज एरे लूप क्लीनअप - Zero STL]**
+            pthread_mutex_lock(&poolMutex_);
+            for (int i = 0; i < MAX_CACHE_SLOTS; ++i) {
+                if (cacheKeys[i] != nullptr) {
+                    if (cacheValues[i].vkImageView != VK_NULL_HANDLE) {
+                        vkDestroyImageView(device, cacheValues[i].vkImageView, nullptr);
+                    }
+                    if (cacheValues[i].vkImage != VK_NULL_HANDLE) {
+                        vkDestroyImage(device, cacheValues[i].vkImage, nullptr);
+                    }
+                    if (cacheValues[i].vkDeviceMemory != VK_NULL_HANDLE) {
+                        vkFreeMemory(device, cacheValues[i].vkDeviceMemory, nullptr);
+                    }
+                    AHardwareBuffer_release(cacheKeys[i]);
+                    cacheKeys[i] = nullptr;
+                }
             }
-            ringBufferCache.clear();
-            if (timelineSemaphore != VK_NULL_HANDLE) vkDestroySemaphore(device, timelineSemaphore, nullptr);
-            if (descriptorPool != VK_NULL_HANDLE) vkDestroyDescriptorPool(device, descriptorPool, nullptr);
-            if (computePipeline != VK_NULL_HANDLE) vkDestroyPipeline(device, computePipeline, nullptr);
-            if (pipelineLayout != VK_NULL_HANDLE) vkDestroyPipelineLayout(device, pipelineLayout, nullptr);
-            if (descriptorSetLayout != VK_NULL_HANDLE) vkDestroyDescriptorSetLayout(device, descriptorSetLayout, nullptr);
-            if (shaderModule != VK_NULL_HANDLE) vkDestroyShaderModule(device, shaderModule, nullptr);
+            cacheCount = 0;
+            pthread_mutex_unlock(&poolMutex_);
+
+            if (timelineSemaphore != VK_NULL_HANDLE) {
+                vkDestroySemaphore(device, timelineSemaphore, nullptr);
+            }
+            if (descriptorPool != VK_NULL_HANDLE) {
+                vkDestroyDescriptorPool(device, descriptorPool, nullptr);
+            }
+            if (computePipeline != VK_NULL_HANDLE) {
+                vkDestroyPipeline(device, computePipeline, nullptr);
+            }
+            if (pipelineLayout != VK_NULL_HANDLE) {
+                vkDestroyPipelineLayout(device, pipelineLayout, nullptr);
+            }
+            if (descriptorSetLayout != VK_NULL_HANDLE) {
+                vkDestroyDescriptorSetLayout(device, descriptorSetLayout, nullptr);
+            }
+            if (shaderModule != VK_NULL_HANDLE) {
+                vkDestroyShaderModule(device, shaderModule, nullptr);
+            }
             for (int i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
-                if (frames[i].commandPool != VK_NULL_HANDLE) vkDestroyCommandPool(device, frames[i].commandPool, nullptr);
+                if (frames[i].commandPool != VK_NULL_HANDLE) {
+                    vkDestroyCommandPool(device, frames[i].commandPool, nullptr);
+                }
             }
             vkDestroyDevice(device, nullptr);
         }
