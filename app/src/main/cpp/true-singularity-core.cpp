@@ -963,12 +963,6 @@ Java_com_my_newproject_truesingularityclass_nativeExecuteMultiFrameRawStacking(
 
     jsize count = env->GetArrayLength(hardwareBuffersArray);
     if (count <= 0) return;
-
-    static auto fromHb = reinterpret_cast<struct AHardwareBuffer*(*)(JNIEnv*, jobject)>(
-        dlsym(dlopen("libandroid.so", RTLD_LAZY), "AHardwareBuffer_fromHardwareBuffer")
-    );
-    if (!fromHb) return;
-
     std::vector<AHardwareBuffer*> frameBuffers;
     uint32_t imgWidth = 0;
     uint32_t imgHeight = 0;
@@ -976,7 +970,7 @@ Java_com_my_newproject_truesingularityclass_nativeExecuteMultiFrameRawStacking(
     for (jsize i = 0; i < count; ++i) {
         jobject hbObj = env->GetObjectArrayElement(hardwareBuffersArray, i);
         if (hbObj) {
-            AHardwareBuffer* hb = fromHb(env, hbObj);
+            AHardwareBuffer* hb = AndroidNativeLoader::getInstance().createFromJava(env, hbObj);
             if (hb) {
                 frameBuffers.push_back(hb);
                 // **[फिक्स 1]: यहाँ से इमेज की सही चौड़ाई और ऊँचाई निकाली जा रही है**
