@@ -4,6 +4,9 @@
 #ifndef __GLIBC_PREREQ
 #define __GLIBC_PREREQ(x, y) 0
 #endif
+#ifndef __GLIBC_USE
+#define __GLIBC_USE(x) 0
+#endif
 #include <features.h>
 #pragma clang diagnostic ignored "-Wunguarded-availability"
 #include <jni.h>
