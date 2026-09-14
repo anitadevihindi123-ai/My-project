@@ -652,10 +652,7 @@ Java_com_my_newproject_truesingularityclass_nativeExecuteZeroCopyPipeline(
     float gX = g_finalEngine->gyroShiftX.load();
     float gY = g_finalEngine->gyroShiftY.load();
 
-    static auto fromHb = reinterpret_cast<struct AHardwareBuffer*(*)(JNIEnv*, jobject)>(
-        dlsym(dlopen("libandroid.so", RTLD_LAZY), "AHardwareBuffer_fromHardwareBuffer")
-    );
-    AHardwareBuffer* hb = fromHb ? fromHb(env, hardwareBufferObj) : nullptr;
+        AHardwareBuffer* hb = AndroidNativeLoader::getInstance().createFromJava(env, hardwareBufferObj);
     if (!hb) return;
 
     AHardwareBuffer_Desc desc;
