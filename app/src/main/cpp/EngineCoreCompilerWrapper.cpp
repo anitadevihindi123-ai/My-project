@@ -127,13 +127,16 @@ void scan_native_sources(const fs::path& root_dir) {
                 if (!t.is_open()) continue;
                 std::string file_content((std::istreambuf_iterator<char>(t)), std::istreambuf_iterator<char>());
 
-                std::vector<std::string> args = {
-                    "-fsyntax-only", "-std=c++17", "-x", "c++",
-                    "-isystem", ndk_include + "/usr/include",
-                    "-isystem", "/usr/lib/llvm-18/lib/clang/18/include",
-                    "-target", "aarch64-none-linux-android26",
-                    "-U__STRICT_ANSI__", "-D_GNU_SOURCE"
-                };
+                std::vector<string> args = {
+    "-fsyntax-only", "-std=c++17", "-x", "c++",
+    "-isystem", ndk_include + "/usr/include",
+    "-isystem", ndk_include + "/usr/include/aarch64-linux-android", // एंड्रॉइड मल्टीआर्च हेडर के लिए
+    "-isystem", "/usr/lib/llvm-18/lib/clang/18/include",
+    "-isystem", "/usr/include/x86_64-linux-gnu", // होस्ट मल्टीआर्च सपोर्ट (bits/wordsize.h के लिए)
+    "-target", "aarch64-none-linux-android26",
+    "-U__STRICT_ANSI__", "-D_GNU_SOURCE"
+};
+
 
                 bool success = clang::tooling::runToolOnCodeWithArgs(
                     std::make_unique<IroncladEngineSafetyAction>(), file_content, args, dir_entry.path().filename().string()
