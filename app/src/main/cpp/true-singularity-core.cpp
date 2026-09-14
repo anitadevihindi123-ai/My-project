@@ -556,12 +556,12 @@ if (thermalFd >= 0) {
 
 void initWindow(ANativeWindow* window) {
     std::unique_lock<std::shared_mutex> lock(surfaceMutex);
-    nativeWindow = window;
+    nativeWindow.store(window, std::memory_order_release);
     if (!instance || !physicalDevice || !device) return;
 
     VkAndroidSurfaceCreateInfoKHR surfInfo = {};
     surfInfo.sType = VK_STRUCTURE_TYPE_ANDROID_SURFACE_CREATE_INFO_KHR;
-    surfInfo.window = nativeWindow;
+    surfInfo.window = nativeWindow.load(std::memory_order_acquire);
     if (vkCreateAndroidSurfaceKHR(instance, &surfInfo, nullptr, &surface) != VK_SUCCESS) return;
 
     VkSurfaceCapabilitiesKHR caps;
@@ -599,8 +599,34 @@ void initWindow(ANativeWindow* window) {
         vkCreateImageView(device, &viewInfo, nullptr, &swapchainImageViews[i]);
     }
 
-    // रेंडर थ्रेड के लिए स्टेट को एक्टिवेट करें
     isSurfaceActive.store(true, std::memory_order_release);
+}
+
+void destroyWindow() {
+    isSurfaceActive.store(false, std::memory_order_release);
+
+    std::unique_lock<std::shared_mutex> lock(surfaceMutex);
+    if (device != VK_NULL_HANDLE) {
+        vkDeviceWaitIdle(device);
+        for (auto v : swapchainImageViews) {
+            if (v != VK_NULL_HANDLE) vkDestroyImageView(device, v, nullptr);
+        }
+        swapchainImageViews.clear();
+        if (swapchain != VK_NULL_HANDLE) {
+            vkDestroySwapchainKHR(device, swapchain, nullptr);
+            swapchain = VK_NULL_HANDLE;
+        }
+        if (surface != VK_NULL_HANDLE) {
+            vkDestroySurfaceKHR(instance, surface, nullptr);
+            surface = VK_NULL_HANDLE;
+        }
+    }
+    
+    ANativeWindow* win = nativeWindow.load(std::memory_order_acquire);
+    if (win) {
+        ANativeWindow_release(win);
+        nativeWindow.store(nullptr, std::memory_order_release);
+    }
 }
 
 void destroyWindow() {
