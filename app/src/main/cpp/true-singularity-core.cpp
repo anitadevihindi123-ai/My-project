@@ -68,7 +68,7 @@ private:
     }
 
 public:
-    static AndroidNativeLoader& getInstance() {
+     static AndroidNativeLoader& getInstance() {
         static AndroidNativeLoader instance;
         return instance;
     }
