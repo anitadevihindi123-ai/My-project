@@ -23,7 +23,7 @@ void enforce_system_halt(const std::string& layer, const std::string& error_msg,
               << "-> File: " << file_path << (line_num > 0 ? ":" + std::to_string(line_num) : "") << "\n"
               << "-> Reason: " << error_msg << "\n"
               << "-> Status: Build permanently aborted. Exit Code 666 enforced.\n";
-    std::exit(666); 
+     std::exit(666); 
 }
 
 bool is_generated_or_build_path(const std::string& path_str) {
