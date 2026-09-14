@@ -188,7 +188,7 @@ std::thread thermalThread;
         AHardwareBuffer_Desc desc;
         AHardwareBuffer_describe(ahb, &desc);
 
-        FinalCachedImage newImg = {};
+        FinalCachedImage cachedImage = {};
         AHardwareBuffer_acquire(ahb);
 
         const native_handle_t* nativeHandle = AHardwareBuffer_getNativeHandle(ahb);
