@@ -226,7 +226,7 @@ std::thread thermalThread;
         imageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
         imageInfo.initialLayout = VK_IMAGE_LAYOUT_GENERAL;
 
-        VK_CHECK(vkCreateImage(device, &imageInfo, nullptr, &newImg.vkImage));
+        VK_CHECK(vkCreateImage(device, &imageInfo, nullptr, &cachedImage.vkImage));
 
         auto fpGetProps = reinterpret_cast<PFN_vkGetAndroidHardwareBufferPropertiesANDROID>(
             vkGetDeviceProcAddr(device, "vkGetAndroidHardwareBufferPropertiesANDROID")
@@ -244,7 +244,7 @@ std::thread thermalThread;
                 VkMemoryDedicatedAllocateInfo dedicatedAllocInfo = {};
                 dedicatedAllocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_DEDICATED_ALLOCATE_INFO;
                 dedicatedAllocInfo.pNext = &importHb;
-                dedicatedAllocInfo.image = newImg.vkImage;
+                dedicatedAllocInfo.image = cachedImage.vkImage;
 
                 VkMemoryAllocateInfo allocInfo = {};
                 allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
@@ -262,14 +262,14 @@ std::thread thermalThread;
                 }
                 allocInfo.memoryTypeIndex = memoryTypeIndex;
 
-                VK_CHECK(vkAllocateMemory(device, &allocInfo, nullptr, &newImg.vkDeviceMemory));
-                VK_CHECK(vkBindImageMemory(device, newImg.vkImage, newImg.vkDeviceMemory, 0));
+                VK_CHECK(vkAllocateMemory(device, &allocInfo, nullptr, &cachedImage.vkDeviceMemory));
+                VK_CHECK(vkBindImageMemory(device, cachedImage.vkImage, cachedImage.vkDeviceMemory, 0));
             }
         }
 
         VkImageViewCreateInfo viewInfo = {};
         viewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-        viewInfo.image = newImg.vkImage;
+        viewInfo.image = cachedImage.vkImage;
         viewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
         viewInfo.format = VK_FORMAT_R8G8B8A8_UNORM;
         viewInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
