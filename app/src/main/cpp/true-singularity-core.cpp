@@ -142,6 +142,19 @@ struct FinalConstants {
 
 class PureMetalEngine {
 public:
+        jlong entropySeed = 0;
+    int viewportWidth = 0;
+    int viewportHeight = 0;
+
+    void setEntropySeed(jlong seed) {
+        entropySeed = seed;
+    }
+
+    void configureViewport(jint width, jint height) {
+        viewportWidth = width;
+        viewportHeight = height;
+    }
+
     VkInstance instance = VK_NULL_HANDLE;
     VkPhysicalDevice physicalDevice = VK_NULL_HANDLE;
     VkDevice device = VK_NULL_HANDLE;
