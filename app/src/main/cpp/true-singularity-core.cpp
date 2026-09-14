@@ -1,3 +1,10 @@
+#ifndef __GNUC_PREREQ
+#define __GNUC_PREREQ(x, y) 0
+#endif
+#ifndef __GLIBC_PREREQ
+#define __GLIBC_PREREQ(x, y) 0
+#endif
+#include <features.h>
 #pragma clang diagnostic ignored "-Wunguarded-availability"
 #include <jni.h>
 #include <atomic>
@@ -193,7 +200,7 @@ std::thread thermalThread;
 
         const native_handle_t* nativeHandle = AHardwareBuffer_getNativeHandle(ahb);
         if (nativeHandle && nativeHandle->numFds > 0) {
-            newImg.kernelDmaBufFd = nativeHandle->data[0];
+            cachedImage.kernelDmaBufFd = nativeHandle->data[0];
         }
 
         VkExternalMemoryImageCreateInfo extInfo = {};
