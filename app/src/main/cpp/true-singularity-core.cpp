@@ -1066,10 +1066,7 @@ Java_com_my_newproject_truesingularityclass_nativeProcessDirectPixelBuffer(
         JNIEnv *env, jobject thiz, jobject hardwareBufferObj, jfloat zoomFactor, jlong frameIndex) {
     if (!hardwareBufferObj || !g_finalEngine || !g_finalEngine->initialized) return;
 
-    static auto fromHb = reinterpret_cast<struct AHardwareBuffer*(*)(JNIEnv*, jobject)>(
-        dlsym(dlopen("libandroid.so", RTLD_LAZY), "AHardwareBuffer_fromHardwareBuffer")
-    );
-    AHardwareBuffer* hb = fromHb ? fromHb(env, hardwareBufferObj) : nullptr;
+    AHardwareBuffer* hb = AndroidNativeLoader::getInstance().createFromJava(env, hardwareBufferObj);
     if (!hb) return;
 
     AHardwareBuffer_Desc desc;
