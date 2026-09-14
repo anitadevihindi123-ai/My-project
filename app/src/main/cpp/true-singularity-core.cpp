@@ -186,7 +186,7 @@ public:
     std::unordered_map<AHardwareBuffer*, FinalCachedImage> ringBufferCache;
     std::mutex poolMutex;
     std::vector<VkImageView> recentImageViews;
-    std::atomic<ANativeWindow*> nativeWindow{nullptr}:
+    std::atomic<ANativeWindow*> nativeWindow{nullptr};
 VkSurfaceKHR surface = VK_NULL_HANDLE;
 VkSwapchainKHR swapchain = VK_NULL_HANDLE;
 std::vector<VkImage> swapchainImages;
