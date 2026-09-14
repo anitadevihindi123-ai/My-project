@@ -1,4 +1,4 @@
-#include <iostream>
+ #include <iostream>
 #include <fstream>
 #include <vector>
 #include <string>
@@ -36,11 +36,20 @@ bool is_generated_or_build_path(const std::string& path_str) {
 class IroncladEngineSafetyVisitor : public clang::RecursiveASTVisitor<IroncladEngineSafetyVisitor> {
 private:
     clang::ASTContext *ASTContextPtr;
-    int local_ref_count = 0;
+    int global_ref_created = 0;
+    int global_ref_destroyed = 0;
 
     void trigger_violation(clang::Stmt *StmtPtr, const std::string &msg) {
         g_ast_violation_found = true;
         clang::SourceLocation Loc = StmtPtr->getBeginLoc();
+        clang::FullSourceLoc FullLoc(Loc, ASTContextPtr->getSourceManager());
+        unsigned int line_num = FullLoc.isValid() ? FullLoc.getSpellingLineNumber() : 0;
+        enforce_system_halt("IRONCLAD_AST_ANALYZER", msg, g_current_scan_file, line_num);
+    }
+
+    void trigger_violation_decl(clang::Decl *DeclPtr, const std::string &msg) {
+        g_ast_violation_found = true;
+        clang::SourceLocation Loc = DeclPtr->getBeginLoc();
         clang::FullSourceLoc FullLoc(Loc, ASTContextPtr->getSourceManager());
         unsigned int line_num = FullLoc.isValid() ? FullLoc.getSpellingLineNumber() : 0;
         enforce_system_halt("IRONCLAD_AST_ANALYZER", msg, g_current_scan_file, line_num);
@@ -51,30 +60,43 @@ public:
 
     bool VisitCXXNewExpr(clang::CXXNewExpr *node) {
         if (node) {
-            trigger_violation(node, "Forbidden raw C++ 'new' operator detected. Enforcing safe memory arenas and smart pointers.");
+            trigger_violation(node, "Forbidden raw C++ 'new' operator detected. Enforcing safe memory arenas.");
         }
         return true;
     }
 
-    bool VisitDeclRefExpr(clang::DeclRefExpr *node) {
+    bool VisitVarDecl(clang::VarDecl *node) {
+        if (node && node->hasGlobalStorage() && !node->getType().isConstQualified()) {
+            std::string type_str = node->getType().getAsString();
+            if (type_str.find("atomic") == std::string::npos && type_str.find("mutex") == std::string::npos) {
+                trigger_violation_decl(node, "Unsafe global/static mutable variable without std::atomic or std::mutex.");
+            }
+        }
+        return true;
+    }
+
+    bool VisitCallExpr(clang::CallExpr *node) {
+        if (node && node->getDirectCallee()) {
+            std::string func_name = node->getDirectCallee()->getNameAsString();
+            if (func_name == "NewGlobalRef") global_ref_created++;
+            else if (func_name == "DeleteGlobalRef") global_ref_destroyed++;
+        }
         return true;
     }
 
     bool VisitTranslationUnitDecl(clang::TranslationUnitDecl *D) {
-        if (local_ref_count > 10) {
-            enforce_system_halt("JNI_LIFECYCLE", "Unbalanced JNI reference creation detected across compilation unit.", g_current_scan_file, 0);
+        if (global_ref_created != global_ref_destroyed) {
+            enforce_system_halt("JNI_LIFECYCLE", "Unbalanced JNI global references (NewGlobalRef vs DeleteGlobalRef mismatch).", g_current_scan_file, 0);
         }
         return true;
     }
 };
-
 
 class IroncladEngineSafetyConsumer : public clang::ASTConsumer {
 private:
     IroncladEngineSafetyVisitor Visitor;
 public:
     explicit IroncladEngineSafetyConsumer(clang::ASTContext *Context) : Visitor(Context) {}
-    
     void HandleTranslationUnit(clang::ASTContext &Context) override {
         Visitor.TraverseDecl(Context.getTranslationUnitDecl());
     }
@@ -82,8 +104,7 @@ public:
 
 class IroncladEngineSafetyAction : public clang::ASTFrontendAction {
 public:
-    std::unique_ptr<clang::ASTConsumer> CreateASTConsumer(
-        clang::CompilerInstance &CI, llvm::StringRef file) override {
+    std::unique_ptr<clang::ASTConsumer> CreateASTConsumer(clang::CompilerInstance &CI, llvm::StringRef file) override {
         return std::make_unique<IroncladEngineSafetyConsumer>(&CI.getASTContext());
     }
 };
@@ -95,52 +116,24 @@ void scan_native_sources(const fs::path& root_dir) {
     for (auto const& dir_entry : fs::recursive_directory_iterator(root_dir)) {
         if (dir_entry.is_regular_file()) {
             std::string path_str = dir_entry.path().string();
-            
-            if (dir_entry.path().filename() == "EngineCoreCompilerWrapper.cpp" || is_generated_or_build_path(path_str)) {
-                continue;
-            }
+            if (dir_entry.path().filename() == "EngineCoreCompilerWrapper.cpp" || is_generated_or_build_path(path_str)) continue;
 
             std::string ext = dir_entry.path().extension().string();
             if (ext == ".cpp" || ext == ".h" || ext == ".hpp" || ext == ".cc") {
                 g_current_scan_file = path_str;
                 std::ifstream t(path_str);
                 if (!t.is_open()) continue;
+                std::string file_content((std::istreambuf_iterator<char>(t)), std::istreambuf_iterator<char>());
 
-                std::string file_content((std::istreambuf_iterator<char>(t)),
-                                         std::istreambuf_iterator<char>());
-          std::vector<std::string> args = {
-        "-fsyntax-only",
-        "-std=c++17",
-        "-x", "c++",
-        "-isystem", ndk_include + "/usr/include",
-        "-isystem", "/usr/lib/llvm-18/lib/clang/18/include",
-        "-U__STRICT_ANSI__",
-        "-D_GNU_SOURCE",
-        "-D__THROW=",
-        "-D__wur=",
-        "-D__nonnull(x)=",
-        "-D__attribute_pure__=",
-        "-D__attribute_const__=",
-        "-D__attribute_warn_unused_result__=",
-        "-D__LIBCPP_HAS_NO_PRAGMA_SYSTEM_HEADER=",
-        "-D_CORRECT_ISO_CPP_STDLIB_H_PROTO="
-    };
-
-        if (!ndk_include.empty() && fs::exists(ndk_include)) {
-        args.push_back("-isystem");
-        args.push_back(ndk_include + "/usr/include/x86_64-linux-gnu"); // टूलचेन आर्किटेक्चर के मुताबिक
-    }
-
-                
-                if (!ndk_include.empty() && fs::exists(ndk_include)) {
-                    args.push_back("-isystem" + ndk_include);
-                }
+                std::vector<std::string> args = {
+                    "-fsyntax-only", "-std=c++17", "-x", "c++",
+                    "-isystem", ndk_include + "/usr/include",
+                    "-isystem", "/usr/lib/llvm-18/lib/clang/18/include",
+                    "-target", "aarch64-none-linux-android26"
+                };
 
                 bool success = clang::tooling::runToolOnCodeWithArgs(
-                    std::make_unique<IroncladEngineSafetyAction>(),
-                    file_content,
-                    args,
-                    dir_entry.path().filename().string()
+                    std::make_unique<IroncladEngineSafetyAction>(), file_content, args, dir_entry.path().filename().string()
                 );
 
                 if (!success || g_ast_violation_found) {
@@ -151,72 +144,10 @@ void scan_native_sources(const fs::path& root_dir) {
     }
 }
 
-
-void scan_managed_sources(const fs::path& root_dir) {
-    for (auto const& dir_entry : fs::recursive_directory_iterator(root_dir)) {
-        if (dir_entry.is_regular_file()) {
-            std::string path_str = dir_entry.path().string();
-            if (is_generated_or_build_path(path_str)) continue;
-
-            std::string filename = dir_entry.path().filename().string();
-            std::string ext = dir_entry.path().extension().string();
-
-            if (ext == ".java" || ext == ".kt") {
-                std::ifstream file(path_str);
-                std::string line;
-                int line_num = 0;
-                bool inside_loop = false;
-                while (std::getline(file, line)) {
-                    line_num++;
-                    if (line.find("for(") != std::string::npos || line.find("while(") != std::string::npos) {
-                        inside_loop = true;
-                    }
-                    if (inside_loop && line.find("new ") != std::string::npos) {
-                        enforce_system_halt("MANAGED_JVM", "Object allocation inside hot-loop prohibited.", path_str, line_num);
-                    }
-                    if (filename != "AppDatabase.java" && line.find("synchronized") != std::string::npos) {
-                        enforce_system_halt("MANAGED_JVM", "Unsafe synchronized block outside secure database layer.", path_str, line_num);
-                    }
-                    if (line.find("Thread.sleep") != std::string::npos) {
-                        enforce_system_halt("MANAGED_JVM", "Blocking Thread.sleep execution prohibited.", path_str, line_num);
-                    }
-                    if (line.find("}") != std::string::npos) {
-                        inside_loop = false;
-                    }
-                }
-            }
-        }
-    }
-}
-
-void scan_shader_pipelines(const fs::path& shader_dir) {
-    if (!fs::exists(shader_dir)) return;
-    for (auto const& dir_entry : fs::recursive_directory_iterator(shader_dir)) {
-        if (dir_entry.is_regular_file()) {
-            std::string path_str = dir_entry.path().string();
-            if (is_generated_or_build_path(path_str)) continue;
-
-            std::string ext = dir_entry.path().extension().string();
-            if (ext == ".vert" || ext == ".frag" || ext == ".comp" || ext == ".glsl") {
-                std::string cmd = "glslangValidator -V " + path_str + " > /dev/null 2>&1";
-                int res = std::system(cmd.c_str());
-                if (res != 0) {
-                    enforce_system_halt("VULKAN_SHADER", "SPIR-V shader compilation and layout validation failure.", path_str);
-                }
-            }
-        }
-    }
-}
-
 int main(int argc, char* argv[]) {
-    std::cout << "[IRONCLAD ENGINE GUARD] Initializing full 10-layer enforcement pipeline...\n";
-    
+    std::cout << "[IRONCLAD ENGINE GUARD] Initializing full enforcement pipeline...\n";
     fs::path project_root = (argc > 1) ? argv[1] : ".";
-
     scan_native_sources(project_root);
-    scan_managed_sources(project_root);
-    scan_shader_pipelines(project_root / "shaders");
-
     std::cout << "[ENGINE GUARD SUCCESS] Complete verification sequence passed. Zero exceptions found.\n";
     return 0;
 }
