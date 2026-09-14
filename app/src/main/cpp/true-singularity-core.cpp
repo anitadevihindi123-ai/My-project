@@ -336,20 +336,20 @@ if (thermalFd >= 0) {
 
         void initThermalMonitor() {
         // **[रॉ इंजीनियरिंग डायनेमिक पाथ स्कैनिंग]**
-        const char* possiblePaths[] = {
-            "/sys/class/thermal/thermal_zone0/temp",
-            "/sys/class/thermal/thermal_zone1/temp",
-            "/sys/class/thermal/thermal_zone2/temp",
-            "/sys/devices/virtual/thermal/thermal_zone0/temp"
-        };
+        const char* const possiblePaths[] = {
+        "/sys/class/thermal/thermal_zone0/temp",
+        "/sys/class/thermal/thermal_zone1/temp",
+        "/sys/class/thermal/thermal_zone2/temp",
+        "/sys/class/thermal/thermal_zone3/temp",
+        "/sys/devices/virtual/thermal/thermal_zone0/temp"
+    };
 
-        for (const char* path : possiblePaths) {
-            thermalFd = open(path, O_RDONLY | O_NONBLOCK);
-            if (thermalFd >= 0) {
-                break; // जैसे ही सही थर्मल जोन फाइल मिल जाएगी, लूप ब्रेक हो जाएगा
-            }
+    for (const char* path : possiblePaths) {
+        thermalFd = open(path, O_RDONLY | O_NONBLOCK);
+        if (thermalFd > 0) {
+            break; 
         }
-
+    }
         thermalThread = std::thread([this]() {
             char buffer[64];
             struct pollfd pfd;
