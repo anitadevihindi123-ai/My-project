@@ -297,38 +297,7 @@ std::thread thermalThread;
         return cachedImage.vkImageView;
     }
 
-                    VkMemoryAllocateInfo allocInfo = {};
-                    allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-                    allocInfo.pNext = &dedicatedAllocInfo;
-                    allocInfo.allocationSize = ahbProps.allocationSize;
-                    allocInfo.memoryTypeIndex = memTypeIdx;
-
-                    VK_CHECK(vkAllocateMemory(device, &allocInfo, nullptr, &cachedImage.vkMemory));
-VK_CHECK(vkBindImageMemory(device, cachedImage.vkImage, cachedImage.vkMemory, 0));
-
-                        VkImageViewCreateInfo viewInfo = {};
-                        viewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-                        viewInfo.image = cachedImage.vkImage;
-                        viewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
-                        viewInfo.format = VK_FORMAT_R8G8B8A8_UNORM;
-                        viewInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-                        viewInfo.subresourceRange.levelCount = 1;
-                        viewInfo.subresourceRange.layerCount = 1;
-
-                        vkCreateImageView(device, &viewInfo, nullptr, &cachedImage.vkImageView);
-                        cachedImage.width = desc.width;
-                        cachedImage.height = desc.height;
-                        cachedImage.isAllocated = true;
-
-                        std::lock_guard<std::mutex> lock(poolMutex);
-                        ringBufferCache[ahb] = cachedImage;
-                        return cachedImage.vkImageView;
-                    }
-                }
-            
-        
-        return VK_NULL_HANDLE;
-    }
+ 
 
     ~PureMetalEngine() {
        thermalRunning = false;
