@@ -127,7 +127,7 @@ void scan_native_sources(const fs::path& root_dir) {
                 if (!t.is_open()) continue;
                 std::string file_content((std::istreambuf_iterator<char>(t)), std::istreambuf_iterator<char>());
 
-                std::vector<string> args = {
+                std::vector<std::string> args = {
     "-fsyntax-only", "-std=c++17", "-x", "c++",
     "-isystem", ndk_include + "/usr/include",
     "-isystem", ndk_include + "/usr/include/aarch64-linux-android", // एंड्रॉइड मल्टीआर्च हेडर के लिए
