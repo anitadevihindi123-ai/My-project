@@ -278,10 +278,10 @@ std::thread thermalThread;
         viewInfo.subresourceRange.baseArrayLayer = 0;
         viewInfo.subresourceRange.layerCount = 1;
 
-        VK_CHECK(vkCreateImageView(device, &viewInfo, nullptr, &newImg.vkImageView));
+        VK_CHECK(vkCreateImageView(device, &viewInfo, nullptr, &cachedImage.vkImageView));
 
-        ringBufferCache[ahb] = newImg;
-        return newImg.vkImageView;
+        ringBufferCache[ahb] = cachedImage;
+        return cachedImage.vkImageView;
     }
 
                     VkMemoryAllocateInfo allocInfo = {};
