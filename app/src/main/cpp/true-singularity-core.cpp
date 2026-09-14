@@ -626,34 +626,8 @@ void destroyWindow() {
     if (win) {
         ANativeWindow_release(win);
         nativeWindow.store(nullptr, std::memory_order_release);
-    }
-}
-
-void destroyWindow() {
-    // नए फ्रेम्स की एंट्री तुरंत ब्लॉक करें ताकि रेस कंडीशन का खतरा शून्य हो जाए
-    isSurfaceActive.store(false, std::memory_order_release);
-
-    std::unique_lock<std::shared_mutex> lock(surfaceMutex);
-    if (device != VK_NULL_HANDLE) {
-        vkDeviceWaitIdle(device);
-        for (auto v : swapchainImageViews) {
-            if (v != VK_NULL_HANDLE) vkDestroyImageView(device, v, nullptr);
-        }
-        swapchainImageViews.clear();
-        if (swapchain != VK_NULL_HANDLE) {
-            vkDestroySwapchainKHR(device, swapchain, nullptr);
-            swapchain = VK_NULL_HANDLE;
-        }
-        if (surface != VK_NULL_HANDLE) {
-            vkDestroySurfaceKHR(instance, surface, nullptr);
-            surface = VK_NULL_HANDLE;
-        }
-    }
-    if (nativeWindow) {
-        ANativeWindow_release(nativeWindow);
-        nativeWindow = nullptr;
-    }
-}
+      }
+   }
 };
 static PureMetalEngine* g_finalEngine = nullptr;
 
