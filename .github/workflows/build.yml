@@ -19,26 +19,35 @@ jobs:
           distribution: 'temurin'
           java-version: '17'
 
-      - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
-        id: setup-android
-
-      - name: Pre-accept Android SDK Licenses
+      - name: Manual Android SDK & License Setup
         run: |
-          mkdir -p ${ANDROID_HOME}/licenses
-          echo "8933bac161af4298b44d37beb6ad0838d093d30b" > ${ANDROID_HOME}/licenses/android-sdk-license
-          echo "d56f5187479451eabf01fb78af6dfcb139a648b0" >> ${ANDROID_HOME}/licenses/android-sdk-license
-          echo "24333f8a43b681423c0debca1129d41656ae09fb" > ${ANDROID_HOME}/licenses/android-sdk-preview-license
-        env:
-          ANDROID_HOME: ${{ steps.setup-android.outputs.android-home }}
+          # 1. कमांड-लाइन टूल्स डाउनलोड और अनजिप करें
+          mkdir -p $HOME/android-sdk/cmdline-tools
+          wget -q https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip -O cmdtools.zip
+          unzip -q cmdtools.zip -d $HOME/android-sdk/cmdline-tools
+          mv $HOME/android-sdk/cmdline-tools/cmdline-tools $HOME/android-sdk/cmdline-tools/latest
+          rm cmdtools.zip
+
+          echo "ANDROID_HOME=$HOME/android-sdk" >> $GITHUB_ENV
+          echo "$HOME/android-sdk/cmdline-tools/latest/bin" >> $GITHUB_PATH
+          echo "$HOME/android-sdk/platform-tools" >> $GITHUB_PATH
+
+          # 2. सभी लाइसेंस खुद जनरेट और स्वीकार करें
+          mkdir -p $HOME/android-sdk/licenses
+          echo "8933bac161af4298b44d37beb6ad0838d093d30b" > $HOME/android-sdk/licenses/android-sdk-license
+          echo "d56f5187479451eabf01fb78af6dfcb139a648b0" >> $HOME/android-sdk/licenses/android-sdk-license
+          echo "24333f8a43b681423c0debca1129d41656ae09fb" >> $HOME/android-sdk/licenses/android-sdk-preview-license
+          echo "24333f8a43b681423c0debca1129d41656ae09fb" >> $HOME/android-sdk/licenses/android-sdk-arm-dbt-license
 
       - name: Install NDK, CMake, and Vulkan Toolchain
         run: |
-          sdkmanager --install "ndk;26.1.10909125" "cmake;3.22.1"
+          yes | sdkmanager --licenses
+          yes | sdkmanager --install "platform-tools" "platforms;android-34" "build-tools;34.0.0" "ndk;26.1.10909125" "cmake;3.22.1"
+          
           sudo apt-get update
           sudo apt-get install -y clang-18 libclang-18-dev llvm-18 llvm-18-dev llvm-18-runtime libclang-cpp18-dev libvulkan-dev vulkan-tools glslang-tools
         env:
-          ANDROID_HOME: ${{ steps.setup-android.outputs.android-home }}
+          ANDROID_HOME: ${{ env.ANDROID_HOME }}
 
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v3
@@ -47,12 +56,12 @@ jobs:
         run: |
           echo "sdk.dir=$ANDROID_HOME" > local.properties
         env:
-          ANDROID_HOME: ${{ steps.setup-android.outputs.android-home }}
+          ANDROID_HOME: ${{ env.ANDROID_HOME }}
 
       - name: Run Android Lint
         run: ./gradlew lintDebug
         env:
-          ANDROID_HOME: ${{ steps.setup-android.outputs.android-home }}
+          ANDROID_HOME: ${{ env.ANDROID_HOME }}
 
       - name: Compile and Execute 10-Layer Static AST Scanner
         run: |
@@ -77,7 +86,7 @@ jobs:
           export CXXFLAGS="-fsanitize=address,undefined -fno-sanitize-recover=all -Werror"
           ./gradlew assembleRelease --quiet
         env:
-          ANDROID_HOME: ${{ steps.setup-android.outputs.android-home }}
+          ANDROID_HOME: ${{ env.ANDROID_HOME }}
 
       - name: Post-Build APK Validation & Khronos Layer Verification
         run: |
