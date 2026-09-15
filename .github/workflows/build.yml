@@ -1,4 +1,4 @@
-Name: Ironclad 10-Layer Production Engine Guard
+name: Ironclad 10-Layer Production Engine Guard
 
 on:
   push:
