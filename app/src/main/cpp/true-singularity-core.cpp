@@ -903,20 +903,19 @@ extern "C" JNIEXPORT void JNICALL
 Java_com_my_newproject_truesingularityclass_nativeInitMasterEngine(
         JNIEnv *env, jobject thiz, jlong seed, jint targetWidth, jint targetHeight) {
     
-     if (!g_engineInitialized.load(std::memory_order_acquire)) {
-        // Direct raw memory interpretation without any high-level constructor expression
-        g_finalEngine = reinterpret_cast<PureMetalEngine*>(g_masterEngineRawBuffer);
-        
-        // Atomic hardware-level memory wipe using intrinsic optimization
-        __builtin_memset(g_masterEngineRawBuffer, 0, sizeof(PureMetalEngine));
-        
-        // Direct binary state injection into the raw memory grid
-        g_finalEngine->setEntropySeed(seed);
-        g_finalEngine->configureViewport(targetWidth, targetHeight);
-        
-        // Lock the hardware state flag
-        g_engineInitialized.store(true, std::memory_order_release);
-
+    // डबल-चेक्ड लॉकिंग पैटर्न (Double-Checked Locking Pattern) - Zero Lag, Max Performance
+    if (!g_engineInitialized.load(std::memory_order_acquire)) {
+        std::lock_guard<std::mutex> lock(g_engineInitMutex);
+        if (!g_engineInitialized.load(std::memory_order_relaxed)) {
+            
+            g_finalEngine = reinterpret_cast<PureMetalEngine*>(g_masterEngineRawBuffer);
+            __builtin_memset(g_masterEngineRawBuffer, 0, sizeof(PureMetalEngine));
+            
+            g_finalEngine->setEntropySeed(seed);
+            g_finalEngine->configureViewport(targetWidth, targetHeight);
+            
+            g_engineInitialized.store(true, std::memory_order_release);
+        }
     }
 }
 
