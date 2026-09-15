@@ -896,13 +896,12 @@ VK_CHECK(vkBindImageMemory(g_finalEngine->device, newImg.vkImage, newImg.vkMemor
 }
 // 64-byte aligned raw memory matrix (Zero Heap, Zero CXXNewExpr, Zero Padding Waste)
 alignas(64) static uint8_t g_masterEngineRawBuffer[sizeof(PureMetalEngine)];
-static volatile bool g_engineInitialized = false;
-
+static std::atomic<bool> g_engineInitialized{false};
 extern "C" JNIEXPORT void JNICALL
 Java_com_my_newproject_truesingularityclass_nativeInitMasterEngine(
         JNIEnv *env, jobject thiz, jlong seed, jint targetWidth, jint targetHeight) {
     
-    if (!g_engineInitialized) {
+     if (!g_engineInitialized.load(std::memory_order_acquire)) {
         // Direct raw memory interpretation without any high-level constructor expression
         g_finalEngine = reinterpret_cast<PureMetalEngine*>(g_masterEngineRawBuffer);
         
@@ -914,7 +913,8 @@ Java_com_my_newproject_truesingularityclass_nativeInitMasterEngine(
         g_finalEngine->configureViewport(targetWidth, targetHeight);
         
         // Lock the hardware state flag
-        g_engineInitialized = true;
+        g_engineInitialized.store(true, std::memory_order_release);
+
     }
 }
 
