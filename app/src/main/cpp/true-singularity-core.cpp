@@ -731,16 +731,16 @@ Java_com_my_newproject_truesingularityclass_nativeExecuteZeroCopyPipeline(
         imageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
         imageInfo.initialLayout = VK_IMAGE_LAYOUT_GENERAL;
 
-      VK_CHECK(vkCreateImage(g_finalEngine->device, &imageInfo, nullptr, &newImg.vkImage));  
+      VK_CHECK(vkCreateImage(Engine->device, &imageInfo, nullptr, &newImg.vkImage));  
         auto fpGetProps = reinterpret_cast<PFN_vkGetAndroidHardwareBufferPropertiesANDROID>(
-                vkGetDeviceProcAddr(g_finalEngine->device, "vkGetAndroidHardwareBufferPropertiesANDROID")
+                vkGetDeviceProcAddr(Engine->device, "vkGetAndroidHardwareBufferPropertiesANDROID")
             );
 
             if (fpGetProps) {
                 VkAndroidHardwareBufferPropertiesANDROID ahbProps = {};
                 ahbProps.sType = VK_STRUCTURE_TYPE_ANDROID_HARDWARE_BUFFER_PROPERTIES_ANDROID;
 
-                if (fpGetProps(g_finalEngine->device, hb, &ahbProps) == VK_SUCCESS) {
+                if (fpGetProps(Engine->device, hb, &ahbProps) == VK_SUCCESS) {
                     VkImportAndroidHardwareBufferInfoANDROID importHb = {};
                     importHb.sType = VK_STRUCTURE_TYPE_IMPORT_ANDROID_HARDWARE_BUFFER_INFO_ANDROID;
                     importHb.buffer = hb;
@@ -751,7 +751,7 @@ Java_com_my_newproject_truesingularityclass_nativeExecuteZeroCopyPipeline(
                     dedicatedAllocInfo.image = newImg.vkImage;
 
                     VkPhysicalDeviceMemoryProperties memProps;
-                    vkGetPhysicalDeviceMemoryProperties(g_finalEngine->physicalDevice, &memProps);
+                    vkGetPhysicalDeviceMemoryProperties(Engine->physicalDevice, &memProps);
 
                     uint32_t memTypeIdx = 0;
                     for (uint32_t i = 0; i < memProps.memoryTypeCount; i++) {
@@ -770,8 +770,8 @@ Java_com_my_newproject_truesingularityclass_nativeExecuteZeroCopyPipeline(
                     allocInfo.allocationSize = ahbProps.allocationSize;
                     allocInfo.memoryTypeIndex = memTypeIdx;
 
-                    VK_CHECK(vkAllocateMemory(g_finalEngine->device, &allocInfo, nullptr, &newImg.vkMemory));
-VK_CHECK(vkBindImageMemory(g_finalEngine->device, newImg.vkImage, newImg.vkMemory, 0));
+                    VK_CHECK(vkAllocateMemory(Engine->device, &allocInfo, nullptr, &newImg.vkMemory));
+VK_CHECK(vkBindImageMemory(Engine->device, newImg.vkImage, newImg.vkMemory, 0));
 
                         VkImageViewCreateInfo viewInfo = {};
                         viewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
@@ -783,13 +783,13 @@ VK_CHECK(vkBindImageMemory(g_finalEngine->device, newImg.vkImage, newImg.vkMemor
                         viewInfo.subresourceRange.baseArrayLayer = 0;
                         viewInfo.subresourceRange.layerCount = 5; // [HARDCORE FIX]: Expose all 5 slices to eliminate out-of-bound shader evaluation faults
 
-                        vkCreateImageView(g_finalEngine->device, &viewInfo, nullptr, &newImg.vkImageView);
+                        vkCreateImageView(Engine->device, &viewInfo, nullptr, &newImg.vkImageView);
                         newImg.width = desc.width;
                         newImg.height = desc.height;
                         newImg.isAllocated = true;
 
-                        std::lock_guard<std::mutex> lock(g_finalEngine->poolMutex);
-                        g_finalEngine->ringBufferCache[hb] = newImg;
+                        std::lock_guard<std::mutex> lock(Engine->poolMutex);
+                        Engine->ringBufferCache[hb] = newImg;
                         cachedImg = newImg;
                     }
                 }
@@ -798,7 +798,7 @@ VK_CHECK(vkBindImageMemory(g_finalEngine->device, newImg.vkImage, newImg.vkMemor
     
     if (cachedImg.vkImageView != VK_NULL_HANDLE) {
         uint32_t prevFrameIdx = (curFrameIdx == 0) ? (MAX_FRAMES_IN_FLIGHT - 1) : (curFrameIdx - 1);
-        VkImageView temporalView = g_finalEngine->frames[prevFrameIdx].frameOutputView;
+        VkImageView temporalView = Engine->frames[prevFrameIdx].frameOutputView;
         if (temporalView == VK_NULL_HANDLE) {
             temporalView = cachedImg.vkImageView;
         }
@@ -810,11 +810,11 @@ VK_CHECK(vkBindImageMemory(g_finalEngine->device, newImg.vkImage, newImg.vkMemor
     imgDesc[1].imageView = cachedImg.vkImageView;
     imgDesc[1].imageLayout = VK_IMAGE_LAYOUT_GENERAL;
 
-    g_finalEngine->recentImageViews.push_back(cachedImg.vkImageView);
-    if (g_finalEngine->recentImageViews.size() > 5) {
-        g_finalEngine->recentImageViews.erase(g_finalEngine->recentImageViews.begin());
+    Engine->recentImageViews.push_back(cachedImg.vkImageView);
+    if (Engine->recentImageViews.size() > 5) {
+        Engine->recentImageViews.erase(Engine->recentImageViews.begin());
     }
-    imgDesc[2].imageView = g_finalEngine->recentImageViews.back();
+    imgDesc[2].imageView = Engine->recentImageViews.back();
     imgDesc[2].imageLayout = VK_IMAGE_LAYOUT_GENERAL;
 
     VkWriteDescriptorSet writes[3] = {};
@@ -828,7 +828,7 @@ VK_CHECK(vkBindImageMemory(g_finalEngine->device, newImg.vkImage, newImg.vkMemor
     }
 
 
-        vkUpdateDescriptorSets(g_finalEngine->device, 3, writes, 0, nullptr);
+        vkUpdateDescriptorSets(Engine->device, 3, writes, 0, nullptr);
 
         VkCommandBufferBeginInfo beginInfo = {};
         beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
@@ -852,8 +852,8 @@ VK_CHECK(vkBindImageMemory(g_finalEngine->device, newImg.vkImage, newImg.vkMemor
 
         vkCmdPipelineBarrier(frame.commandBuffer, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, 0, nullptr, 0, nullptr, 1, &barrier);
 
-        vkCmdBindPipeline(frame.commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, g_finalEngine->computePipeline);
-        vkCmdBindDescriptorSets(frame.commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, g_finalEngine->pipelineLayout, 0, 1, &frame.descriptorSet, 0, nullptr);
+        vkCmdBindPipeline(frame.commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, Engine->computePipeline);
+        vkCmdBindDescriptorSets(frame.commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, Engine->pipelineLayout, 0, 1, &frame.descriptorSet, 0, nullptr);
 
         FinalConstants pc = {};
         pc.zoomFactor = zoomFactor;
@@ -866,15 +866,15 @@ VK_CHECK(vkBindImageMemory(g_finalEngine->device, newImg.vkImage, newImg.vkMemor
         pc._pad1 = 0.0f;
         
         for (int i = 0; i < 16; ++i) {
-    pc.viewMatrix[i] = g_finalEngine->viewMatrix[i];
+    pc.viewMatrix[i] = Engine->viewMatrix[i];
 }
 
-        vkCmdPushConstants(frame.commandBuffer, g_finalEngine->pipelineLayout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(pc), &pc);
+        vkCmdPushConstants(frame.commandBuffer, Engine->pipelineLayout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(pc), &pc);
         vkCmdDispatch(frame.commandBuffer, (desc.width + 15) / 16, (desc.height + 15) / 16, 1);
 
         vkEndCommandBuffer(frame.commandBuffer);
 
-        uint64_t sigVal = ++g_finalEngine->globalTimelineCounter;
+        uint64_t sigVal = ++Engine->globalTimelineCounter;
         frame.timelineTargetValue = sigVal;
 
         VkTimelineSemaphoreSubmitInfo timeSub = {};
@@ -888,9 +888,9 @@ VK_CHECK(vkBindImageMemory(g_finalEngine->device, newImg.vkImage, newImg.vkMemor
         submit.commandBufferCount = 1;
         submit.pCommandBuffers = &frame.commandBuffer;
         submit.signalSemaphoreCount = 1;
-        submit.pSignalSemaphores = &g_finalEngine->timelineSemaphore;
+        submit.pSignalSemaphores = &Engine->timelineSemaphore;
 
-        vkQueueSubmit(g_finalEngine->computeQueue, 1, &submit, VK_NULL_HANDLE);
+        vkQueueSubmit(Engine->computeQueue, 1, &submit, VK_NULL_HANDLE);
 
         frame.frameOutputView = cachedImg.vkImageView;
     }
