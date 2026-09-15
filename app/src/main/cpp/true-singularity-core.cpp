@@ -634,9 +634,9 @@ extern "C" JNIEXPORT void JNICALL
 Java_com_my_newproject_truesingularityclass_nativeExecuteZeroCopyPipeline(
         JNIEnv *env, jobject thiz, jobject hardwareBufferObj, jfloat zoomFactor, jlong frameIndex) {
 
-      PureMetalEngine* engine = g_finalEngine.load(std::memory_order_acquire);
+      PureMetalEngine* Engine = g_finalEngine.load(std::memory_order_acquire);
 
-    if (!hardwareBufferObj || !engine || !engine->initialized) return;
+    if (!hardwareBufferObj || !Engine || !Engine->initialized) return;
     // रॉ इंजीनियरिंग सरफेस लॉक
     std::shared_lock<std::shared_mutex> lock(Engine->surfaceMutex);
     if (!Engine->isSurfaceActive.load(std::memory_order_acquire)) {
