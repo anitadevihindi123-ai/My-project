@@ -895,9 +895,10 @@ VK_CHECK(vkBindImageMemory(Engine->device, newImg.vkImage, newImg.vkMemory, 0));
         frame.frameOutputView = cachedImg.vkImageView;
     }
 }
-// 64-byte aligned raw memory matrix (Zero Heap, Zero CXXNewExpr, Zero Padding Waste)
+// 64-byte aligned raw memory matrix with a dedicated Mutex Lock for Engine Initialization Access
 alignas(64) static uint8_t g_masterEngineRawBuffer[sizeof(PureMetalEngine)];
 static std::atomic<bool> g_engineInitialized{false};
+static std::mutex g_engineInitMutex; // <--- यह नया म्यूटैक्स गार्ड थ्रेड-सेफ्टी की गारंटी देगा
 extern "C" JNIEXPORT void JNICALL
 Java_com_my_newproject_truesingularityclass_nativeInitMasterEngine(
         JNIEnv *env, jobject thiz, jlong seed, jint targetWidth, jint targetHeight) {
