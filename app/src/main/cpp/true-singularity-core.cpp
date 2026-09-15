@@ -335,7 +335,7 @@ if (thermalFd >= 0) {
     }
 
         void initThermalMonitor() {
-        // **[रॉ इंजीनियरिंग डायनेमिक पाथ स्कैनिंग]**
+        
         const char* const possiblePaths[] = {
         "/sys/class/thermal/thermal_zone0/temp",
         "/sys/class/thermal/thermal_zone1/temp",
