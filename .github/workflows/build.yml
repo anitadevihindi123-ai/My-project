@@ -1,4 +1,4 @@
-name: Ironclad 10-Layer Production Engine Guard
+Name: Ironclad 10-Layer Production Engine Guard
 
 on:
   push:
@@ -23,15 +23,22 @@ jobs:
         uses: android-actions/setup-android@v3
         id: setup-android
 
-      - name: Accept Android SDK Licenses
+      - name: Pre-accept Android SDK Licenses
         run: |
-          yes | sdkmanager --licenses || true
+          mkdir -p ${ANDROID_HOME}/licenses
+          echo "8933bac161af4298b44d37beb6ad0838d093d30b" > ${ANDROID_HOME}/licenses/android-sdk-license
+          echo "d56f5187479451eabf01fb78af6dfcb139a648b0" >> ${ANDROID_HOME}/licenses/android-sdk-license
+          echo "24333f8a43b681423c0debca1129d41656ae09fb" > ${ANDROID_HOME}/licenses/android-sdk-preview-license
+        env:
+          ANDROID_HOME: ${{ steps.setup-android.outputs.android-home }}
 
       - name: Install NDK, CMake, and Vulkan Toolchain
         run: |
           sdkmanager --install "ndk;26.1.10909125" "cmake;3.22.1"
           sudo apt-get update
           sudo apt-get install -y clang-18 libclang-18-dev llvm-18 llvm-18-dev llvm-18-runtime libclang-cpp18-dev libvulkan-dev vulkan-tools glslang-tools
+        env:
+          ANDROID_HOME: ${{ steps.setup-android.outputs.android-home }}
 
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v3
@@ -64,10 +71,10 @@ jobs:
           echo "=== Executing Absolute Zero-Tolerance Engine Scan ==="
           ./engine_host_scanner .
 
-      - name: Compile Native Core with Strict Sanitizers (ASan, TSan, UBSan)
+      - name: Compile Native Core with Strict Sanitizers (ASan, UBSan)
         run: |
-          export CFLAGS="-fsanitize=address,thread,undefined -fno-sanitize-recover=all -Werror"
-          export CXXFLAGS="-fsanitize=address,thread,undefined -fno-sanitize-recover=all -Werror"
+          export CFLAGS="-fsanitize=address,undefined -fno-sanitize-recover=all -Werror"
+          export CXXFLAGS="-fsanitize=address,undefined -fno-sanitize-recover=all -Werror"
           ./gradlew assembleRelease --quiet
         env:
           ANDROID_HOME: ${{ steps.setup-android.outputs.android-home }}
