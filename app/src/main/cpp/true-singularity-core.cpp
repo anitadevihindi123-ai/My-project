@@ -638,20 +638,20 @@ Java_com_my_newproject_truesingularityclass_nativeExecuteZeroCopyPipeline(
 
     if (!hardwareBufferObj || !engine || !engine->initialized) return;
     // रॉ इंजीनियरिंग सरफेस लॉक
-    std::shared_lock<std::shared_mutex> lock(g_finalEngine->surfaceMutex);
-    if (!g_finalEngine->isSurfaceActive.load(std::memory_order_acquire)) {
+    std::shared_lock<std::shared_mutex> lock(Engine->surfaceMutex);
+    if (!Engine->isSurfaceActive.load(std::memory_order_acquire)) {
         return; 
     }
-    uint32_t rawTemp = g_finalEngine->readKernelThermalRegister();
+    uint32_t rawTemp = Engine->readKernelThermalRegister();
     float thermalNorm = static_cast<float>(rawTemp) / 100000.0f;
-    g_finalEngine->thermalLoad.store(thermalNorm);
+    Engine->thermalLoad.store(thermalNorm);
 
     if (thermalNorm > 75.0f && (frameIndex % 2 != 0)) {
         return; 
     }
 
-    float gX = g_finalEngine->gyroShiftX.load();
-    float gY = g_finalEngine->gyroShiftY.load();
+    float gX = Engine->gyroShiftX.load();
+    float gY = Engine->gyroShiftY.load();
 
         AHardwareBuffer* hb = AndroidNativeLoader::getInstance().createFromJava(env, hardwareBufferObj);
     if (!hb) return;
@@ -659,26 +659,26 @@ Java_com_my_newproject_truesingularityclass_nativeExecuteZeroCopyPipeline(
     AHardwareBuffer_Desc desc;
     AHardwareBuffer_describe(hb, &desc);
 
-    uint32_t curFrameIdx = g_finalEngine->currentFrameIndex;
-    FinalFrameContext& frame = g_finalEngine->frames[curFrameIdx];
-    g_finalEngine->currentFrameIndex = (curFrameIdx + 1) % MAX_FRAMES_IN_FLIGHT;
+    uint32_t curFrameIdx = Engine->currentFrameIndex;
+    FinalFrameContext& frame = Engine->frames[curFrameIdx];
+    Engine->currentFrameIndex = (curFrameIdx + 1) % MAX_FRAMES_IN_FLIGHT;
 
-        if (frame.timelineTargetValue > 0 && g_finalEngine->pfnVkWaitSemaphores) {
+        if (frame.timelineTargetValue > 0 && Engine->pfnVkWaitSemaphores) {
         VkSemaphoreWaitInfo waitInfo = {};
         waitInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_WAIT_INFO;
         waitInfo.semaphoreCount = 1;
-        waitInfo.pSemaphores = &g_finalEngine->timelineSemaphore;
+        waitInfo.pSemaphores = &Engine->timelineSemaphore;
         waitInfo.pValues = &frame.timelineTargetValue;
-        g_finalEngine->pfnVkWaitSemaphores(g_finalEngine->device, &waitInfo, UINT64_MAX);
+        Engine->pfnVkWaitSemaphores(Engine->device, &waitInfo, UINT64_MAX);
     }
 
 
     FinalCachedImage cachedImg;
     bool needsAllocation = false;
     {
-        std::lock_guard<std::mutex> lock(g_finalEngine->poolMutex);
-        auto it = g_finalEngine->ringBufferCache.find(hb);
-        if (it != g_finalEngine->ringBufferCache.end()) {
+        std::lock_guard<std::mutex> lock(Engine->poolMutex);
+        auto it = Engine->ringBufferCache.find(hb);
+        if (it != Engine->ringBufferCache.end()) {
             cachedImg = it->second;
         } else {
             needsAllocation = true;
@@ -686,18 +686,18 @@ Java_com_my_newproject_truesingularityclass_nativeExecuteZeroCopyPipeline(
     }
                 const size_t MAX_CACHE_SIZE = 16;
     {
-        std::lock_guard<std::mutex> lock(g_finalEngine->poolMutex);
-        if (g_finalEngine->ringBufferCache.size() >= MAX_CACHE_SIZE) {
-            auto oldestIt = g_finalEngine->ringBufferCache.begin();
-            if (oldestIt != g_finalEngine->ringBufferCache.end()) {
+        std::lock_guard<std::mutex> lock(Engine->poolMutex);
+        if (Engine->ringBufferCache.size() >= MAX_CACHE_SIZE) {
+            auto oldestIt = Engine->ringBufferCache.begin();
+            if (oldestIt != Engine->ringBufferCache.end()) {
                 // यह लाइन पुरानी लाइन के ऊपर लगानी है:
-                vkDeviceWaitIdle(g_finalEngine->device);
+                vkDeviceWaitIdle(Engine->device);
 
-                if (oldestIt->second.vkImageView != VK_NULL_HANDLE) vkDestroyImageView(g_finalEngine->device, oldestIt->second.vkImageView, nullptr);
-                if (oldestIt->second.vkImage != VK_NULL_HANDLE) vkDestroyImage(g_finalEngine->device, oldestIt->second.vkImage, nullptr);
-                if (oldestIt->second.vkMemory != VK_NULL_HANDLE) vkFreeMemory(g_finalEngine->device, oldestIt->second.vkMemory, nullptr);
+                if (oldestIt->second.vkImageView != VK_NULL_HANDLE) vkDestroyImageView(Engine->device, oldestIt->second.vkImageView, nullptr);
+                if (oldestIt->second.vkImage != VK_NULL_HANDLE) vkDestroyImage(Engine->device, oldestIt->second.vkImage, nullptr);
+                if (oldestIt->second.vkMemory != VK_NULL_HANDLE) vkFreeMemory(Engine->device, oldestIt->second.vkMemory, nullptr);
                 if (oldestIt->first) AHardwareBuffer_release(oldestIt->first);
-                g_finalEngine->ringBufferCache.erase(oldestIt);
+                Engine->ringBufferCache.erase(oldestIt);
             }
         }
     }
