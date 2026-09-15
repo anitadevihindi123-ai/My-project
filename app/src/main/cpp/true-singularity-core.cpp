@@ -629,13 +629,14 @@ void destroyWindow() {
       }
    }
 };
-static PureMetalEngine* g_finalEngine = nullptr;
-
+static std::atomic<PureMetalEngine*> g_finalEngine{nullptr};
 extern "C" JNIEXPORT void JNICALL
 Java_com_my_newproject_truesingularityclass_nativeExecuteZeroCopyPipeline(
         JNIEnv *env, jobject thiz, jobject hardwareBufferObj, jfloat zoomFactor, jlong frameIndex) {
 
-    if (!hardwareBufferObj || !g_finalEngine || !g_finalEngine->initialized) return;
+      PureMetalEngine* engine = g_finalEngine.load(std::memory_order_acquire);
+
+    if (!hardwareBufferObj || !engine || !engine->initialized) return;
     // रॉ इंजीनियरिंग सरफेस लॉक
     std::shared_lock<std::shared_mutex> lock(g_finalEngine->surfaceMutex);
     if (!g_finalEngine->isSurfaceActive.load(std::memory_order_acquire)) {
