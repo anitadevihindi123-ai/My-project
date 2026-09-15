@@ -13,15 +13,19 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # 1. सुरक्षा सुधार: चेकआउट के तुरंत बाद gradlew को परमिशन देना ताकि Permission Denied न आए
+      - name: Grant execute permission for gradlew
+        run: chmod +x ./gradlew
+
+      # 2. अपग्रेडेड वर्जन: v4 की जगह आधुनिक और स्थिर v5 का उपयोग
       - name: Set up JDK 17
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           distribution: 'temurin'
           java-version: '17'
 
       - name: Manual Android SDK & License Setup
         run: |
-          # 1. कमांड-लाइन टूल्स डाउनलोड और अनजिप करें
           mkdir -p $HOME/android-sdk/cmdline-tools
           wget -q https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip -O cmdtools.zip
           unzip -q cmdtools.zip -d $HOME/android-sdk/cmdline-tools
@@ -32,7 +36,6 @@ jobs:
           echo "$HOME/android-sdk/cmdline-tools/latest/bin" >> $GITHUB_PATH
           echo "$HOME/android-sdk/platform-tools" >> $GITHUB_PATH
 
-          # 2. सभी लाइसेंस खुद जनरेट और स्वीकार करें
           mkdir -p $HOME/android-sdk/licenses
           echo "8933bac161af4298b44d37beb6ad0838d093d30b" > $HOME/android-sdk/licenses/android-sdk-license
           echo "d56f5187479451eabf01fb78af6dfcb139a648b0" >> $HOME/android-sdk/licenses/android-sdk-license
@@ -41,17 +44,19 @@ jobs:
 
       - name: Install NDK, CMake, and Vulkan Toolchain
         run: |
-          yes | sdkmanager --licenses
+          yes | sdkmanager --licenses || true
           yes | sdkmanager --install "platform-tools" "platforms;android-34" "build-tools;34.0.0" "ndk;26.1.10909125" "cmake;3.22.1"
           
           sudo apt-get update
-          sudo apt-get install -y clang-18 libclang-18-dev llvm-18 llvm-18-dev llvm-18-runtime libclang-cpp18-dev libvulkan-dev vulkan-tools glslang-tools
-          libc6-dev gcc-multilib g++-multilib
+          sudo apt-get install -y clang-18 libclang-18-dev llvm-18 llvm-18-dev llvm-18-runtime libclang-cpp18-dev libvulkan-dev vulkan-tools glslang-tools libc6-dev gcc-multilib g++-multilib || {
+            echo "Error: Failed to install LLVM/Clang toolchain packages."
+            exit 1
+          }
         env:
           ANDROID_HOME: ${{ env.ANDROID_HOME }}
 
       - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@v3
+        uses: gradle/actions/setup-gradle@v4
 
       - name: Create local.properties
         run: |
@@ -60,12 +65,18 @@ jobs:
           ANDROID_HOME: ${{ env.ANDROID_HOME }}
 
       - name: Run Android Lint
-        run: ./gradlew lintDebug
+        run: ./gradlew lintDebug || { echo "Android Lint found issues. Please review."; exit 1; }
         env:
           ANDROID_HOME: ${{ env.ANDROID_HOME }}
 
       - name: Compile and Execute 10-Layer Static AST Scanner
         run: |
+          # 3. LLVM-18 की उपलब्धता का फॉल-बैक चेक
+          if ! command -v llvm-config-18 &> /dev/null; then
+            echo "Error: llvm-config-18 not found!"
+            exit 1
+          fi
+
           LLVM_LIB_DIR=$(llvm-config-18 --libdir)
           AUTO_LIBS=$(find "$LLVM_LIB_DIR" \( -name "libclang*.a" ! -name "*clang_rt*" \) -o -name "libllvm*.a" -o -name "libclang-cpp*.so" 2>/dev/null | sed 's|.*/lib\(.*\)\.[as][oa]|-l\1|' | sort -u | tr '\n' ' ')
           
@@ -91,8 +102,16 @@ jobs:
 
       - name: Post-Build APK Validation & Khronos Layer Verification
         run: |
+          # 4. APK आउटपुट पाथ की डायनेमिक और सुरक्षित तलाश
+          APK_PATH=$(find app/build/outputs/apk -name "*.apk" | head -n 1)
+          if [ -z "$APK_PATH" ]; then
+            echo "Error: Release APK not found anywhere in build outputs!"
+            exit 1
+          fi
+          echo "Found APK at: $APK_PATH"
+
           mkdir -p extracted_apk
-          unzip -q app/build/outputs/apk/release/app-release.apk -d extracted_apk
+          unzip -q "$APK_PATH" -d extracted_apk
           echo "=== Verifying Validation Layer Manifests ==="
           find extracted_apk -type f -name "*vulkan*" -o -name "*.json"
           find extracted_apk -type f -exec du -h {} + | sort -rh
