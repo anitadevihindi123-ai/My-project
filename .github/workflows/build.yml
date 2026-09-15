@@ -1,4 +1,4 @@
-name: Ironclad 10-Layer Production Engine Guard
+Name: Ironclad 10-Layer Production Engine Guard
 
 on:
   push:
@@ -22,6 +22,10 @@ jobs:
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
         id: setup-android
+
+      - name: Accept Android SDK Licenses
+        run: |
+          yes | sdkmanager --licenses || true
 
       - name: Install NDK, CMake, and Vulkan Toolchain
         run: |
