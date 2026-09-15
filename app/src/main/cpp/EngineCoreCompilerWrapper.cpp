@@ -132,7 +132,7 @@ void scan_native_sources(const fs::path& root_dir) {
     "-isystem", ndk_include + "/usr/include",
     "-isystem", ndk_include + "/usr/include/aarch64-linux-android", // एंड्रॉइड मल्टीआर्च हेडर के लिए
     "-isystem", "/usr/lib/llvm-18/lib/clang/18/include",
-    "-isystem", "/usr/include/x86_64-linux-gnu", // होस्ट मल्टीआर्च सपोर्ट (bits/wordsize.h के लिए)
+    // होस्ट मल्टीआर्च सपोर्ट (bits/wordsize.h के लिए)
     "-target", "aarch64-none-linux-android26",
     "-U__STRICT_ANSI__", "-D_GNU_SOURCE"
 };
