@@ -151,31 +151,45 @@ void scan_native_sources(const fs::path& root_dir) {
     std::string ndk_cxx_include = ""; 
     std::string clang_builtin_include = "";
 
-    // 1. डायनेमिक NDK और होस्ट प्लेटफॉर्म खोज
+       // 1. NDK और होस्ट प्रोbing खोज (Professional std::error_code approach - No Exceptions)
     if (android_home_env) {
-        try {
-            fs::path ndk_root = fs::path(android_home_env) / "ndk";
-            if (fs::exists(ndk_root)) {
-                for (auto const& entry : fs::directory_iterator(ndk_root)) {
-                    if (entry.is_directory()) {
+        fs::path ndk_root = fs::path(android_home_env) / "ndk";
+        std::error_code ec_ndk;
+        
+        if (fs::exists(ndk_root, ec_ndk) && !ec_ndk) {
+            fs::directory_iterator ndk_it(ndk_root, ec_ndk);
+            if (!ec_ndk) {
+                for (auto const& entry : ndk_it) {
+                    std::error_code ec_entry;
+                    if (entry.is_directory(ec_entry) && !ec_entry) {
                         fs::path prebuilt_dir = entry.path() / "toolchains" / "llvm" / "prebuilt";
-                        if (fs::exists(prebuilt_dir)) {
-                            for (auto const& host_entry : fs::directory_iterator(prebuilt_dir)) {
-                                if (host_entry.is_directory()) {
-                                    fs::path sysroot_path = host_entry.path() / "sysroot" / "usr" / "include";
-                                    if (fs::exists(sysroot_path)) {
-                                        ndk_sysroot = sysroot_path.string();
-                                        ndk_arch_include = (sysroot_path / "aarch64-linux-android").string();
-                                        if (!fs::exists(ndk_arch_include)) {
-                                            ndk_arch_include = sysroot_path.string();
-                                        }
+                        std::error_code ec_prebuilt;
+                        
+                        if (fs::exists(prebuilt_dir, ec_prebuilt) && !ec_prebuilt) {
+                            fs::directory_iterator host_it(prebuilt_dir, ec_prebuilt);
+                            if (!ec_prebuilt) {
+                                for (auto const& host_entry : host_it) {
+                                    std::error_code ec_host;
+                                    if (host_entry.is_directory(ec_host) && !ec_host) {
+                                        fs::path sysroot_path = host_entry.path() / "sysroot" / "usr" / "include";
+                                        std::error_code ec_sys;
                                         
-                                        // C++ Standard Headers (atomic, mutex आदि के लिए)
-                                        fs::path cxx_path = sysroot_path / "c++" / "v1";
-                                        if (fs::exists(cxx_path)) {
-                                            ndk_cxx_include = cxx_path.string();
+                                        if (fs::exists(sysroot_path, ec_sys) && !ec_sys) {
+                                            ndk_sysroot = sysroot_path.string();
+                                            ndk_arch_include = (sysroot_path / "aarch64-linux-android").string();
+                                            
+                                            std::error_code ec_arch;
+                                            if (!fs::exists(ndk_arch_include, ec_arch) || ec_arch) {
+                                                ndk_arch_include = sysroot_path.string();
+                                            }
+
+                                            // C++ Standard Headers (atomic, mutex आदि के लिए)
+                                            fs::path cxx_path = sysroot_path / "c++" / "v1";
+                                            std::error_code ec_cxx;
+                                            if (fs::exists(cxx_path, ec_cxx) && !ec_cxx) {
+                                                ndk_cxx_include = cxx_path.string();
+                                            }
                                         }
-                                        
                                         break;
                                     }
                                 }
@@ -185,10 +199,9 @@ void scan_native_sources(const fs::path& root_dir) {
                     if (!ndk_sysroot.empty()) break;
                 }
             }
-        } catch (...) {
-            // NDK स्कैनिंग के दौरान किसी भी अनचाहे अपवाद को दबाने के लिए सेफ कैच
         }
     }
+
 
     // 2. Clang इनबिल्ट हेडर की डायनेमिक खोज (ऑल-ऑपरेटिंग सिस्टम फॉलबैक)
     const std::vector<std::string> possible_llvm_paths = {
