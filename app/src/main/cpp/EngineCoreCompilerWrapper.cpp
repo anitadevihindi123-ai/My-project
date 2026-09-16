@@ -141,8 +141,56 @@ public:
 // 2. नेटिव C++ सोर्सेज स्कैनिंग
 void scan_native_sources(const fs::path& root_dir) {
     const char* android_home_env = std::getenv("ANDROID_HOME");
-    std::string ndk_include = android_home_env ? std::string(android_home_env) + "/ndk/26.1.10909125/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/include" : "";
+    std::string ndk_sysroot = "";
+    std::string ndk_arch_include = "";
+    std::string clang_builtin_include = "";
 
+    // 1. डायनेमिक NDK और होस्ट प्लेटफॉर्म खोज (Zero Hardcoding - 100% Flexible)
+    if (android_home_env) {
+        fs::path ndk_root = fs::path(android_home_env) / "ndk";
+        if (fs::exists(ndk_root)) {
+            // NDK का कोई भी फोल्डर/वर्जन हो, अपने आप उठा लेगा
+            for (auto const& entry : fs::directory_iterator(ndk_root)) {
+                if (entry.is_directory()) {
+                    fs::path prebuilt_dir = entry.path() / "toolchains" / "llvm" / "prebuilt";
+                    if (fs::exists(prebuilt_dir)) {
+                        // किसी भी होस्ट ओएस (linux-x86_64, darwin, windows) को ऑटो-डिटेक्ट करेगा
+                        for (auto const& host_entry : fs::directory_iterator(prebuilt_dir)) {
+                            if (host_entry.is_directory()) {
+                                fs::path sysroot_path = host_entry.path() / "sysroot" / "usr" / "include";
+                                if (fs::exists(sysroot_path)) {
+                                    ndk_sysroot = sysroot_path.string();
+                                    ndk_arch_include = (sysroot_path / "aarch64-linux-android").string();
+                                    if (!fs::exists(ndk_arch_include)) {
+                                        ndk_arch_include = sysroot_path.string();
+                                    }
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                }
+                if (!ndk_sysroot.empty()) break;
+            }
+        }
+    }
+
+    // 2. Clang इनबिल्ट हेडर की डायनेमिक खोज (अलग-अलग सिस्टम के हिसाब से सेफ फॉलबैक)
+    const std::vector<std::string> possible_llvm_paths = {
+        "/usr/lib/llvm-18/lib/clang/18/include",
+        "/usr/lib/llvm-17/lib/clang/17/include",
+        "/usr/lib/llvm-19/lib/clang/19/include",
+        "/usr/local/lib/clang/include",
+        "/Library/Developer/CommandLineTools/usr/lib/clang/include"
+    };
+    for (const auto& p : possible_llvm_paths) {
+        if (fs::exists(p)) {
+            clang_builtin_include = p;
+            break;
+        }
+    }
+
+    // 3. मुख्य स्कैनिंग लूप
     for (auto const& dir_entry : fs::recursive_directory_iterator(root_dir)) {
         if (dir_entry.is_regular_file()) {
             std::string path_str = dir_entry.path().string();
@@ -155,14 +203,28 @@ void scan_native_sources(const fs::path& root_dir) {
                 if (!t.is_open()) continue;
                 std::string file_content((std::istreambuf_iterator<char>(t)), std::istreambuf_iterator<char>());
 
+                // डायनेमिक आर्ग्यूमेंट्स लिस्ट (जो मौजूद होगा, वही जुड़ेगा)
                 std::vector<std::string> args = {
-                    "-fsyntax-only", "-std=c++17", "-x", "c++",
-                    "-isystem", ndk_include + "/usr/include",
-                    "-isystem", ndk_include + "/usr/include/aarch64-linux-android",
-                    "-isystem", "/usr/lib/llvm-18/lib/clang/18/include",
-                    "-target", "aarch64-none-linux-android26",
-                    "-U__STRICT_ANSI__", "-D_GNU_SOURCE"
+                    "-fsyntax-only", "-std=c++17", "-x", "c++"
                 };
+
+                if (!ndk_sysroot.empty()) {
+                    args.push_back("-isystem");
+                    args.push_back(ndk_sysroot);
+                }
+                if (!ndk_arch_include.empty()) {
+                    args.push_back("-isystem");
+                    args.push_back(ndk_arch_include);
+                }
+                if (!clang_builtin_include.empty()) {
+                    args.push_back("-isystem");
+                    args.push_back(clang_builtin_include);
+                }
+
+                args.push_back("-target");
+                args.push_back("aarch64-none-linux-android26");
+                args.push_back("-U__STRICT_ANSI__");
+                args.push_back("-D_GNU_SOURCE");
 
                 bool success = clang::tooling::runToolOnCodeWithArgs(
                     std::make_unique<IroncladEngineSafetyAction>(), file_content, args, dir_entry.path().filename().string()
@@ -175,6 +237,7 @@ void scan_native_sources(const fs::path& root_dir) {
         }
     }
 }
+
 
 // 3. मैनेज्ड (Java/Kotlin) सोर्सेज स्कैनिंग
 void scan_managed_sources(const fs::path& root_dir) {
