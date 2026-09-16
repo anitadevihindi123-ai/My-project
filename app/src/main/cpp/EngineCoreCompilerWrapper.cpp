@@ -245,37 +245,31 @@ void scan_native_sources(const fs::path& root_dir) {
                         args.push_back(ndk_cxx_include);
                     }
                     if (!ndk_sysroot.empty()) {
-                        args.push_back("-isystem");
-                        args.push_back(ndk_sysroot);
-                    }
-                    if (!ndk_arch_include.empty()) {
-                        args.push_back("-isystem");
-                        args.push_back(ndk_arch_include);
-                    }
-                    if (!clang_builtin_include.empty()) {
-                        args.push_back("-isystem");
-                        args.push_back(clang_builtin_include);
-                    }
-
-                    args.push_back("-target");
-                    args.push_back("aarch64-none-linux-android26");
-                    args.push_back("-U__STRICT_ANSI__");
-                    args.push_back("-D_GNU_SOURCE");
-
-                    bool success = clang::tooling::runToolOnCodeWithArgs(
-                        std::make_unique<IroncladEngineSafetyAction>(), file_content, args, dir_entry.path().filename().string()
-                    );
-
-                    if (!success || g_ast_violation_found) {
-                        enforce_system_halt("NATIVE_AST_PARSER", "AST structural safety validation failure.", path_str);
-                    }
-                }
-            }
-        }
-    } catch (const std::exception& e) {
-        // किसी भी फाइल परमिशन या इटरेटर फॉल्ट पर सिस्टम क्रैश नहीं होगा
+        args.push_back("-isystem");
+        args.push_back(ndk_sysroot);
     }
-}
+    if (!ndk_arch_include.empty()) {
+        args.push_back("-isystem");
+        args.push_back(ndk_arch_include);
+    }
+    if (!clang_builtin_include.empty()) {
+        args.push_back("-isystem");
+        args.push_back(clang_builtin_include);
+    }
+
+    args.push_back("-target");
+    args.push_back("aarch64-none-linux-android");
+    args.push_back("-U__STRICT_ANSI__");
+    args.push_back("-D_GNU_SOURCE");
+
+    // सीधा और फौलादी एक्सेक्यूशन (बिना किसी try-catch के)
+    bool success = clang::tooling::runToolOnCodeWithArgs(
+        std::make_unique<IroncladEngineSafetyAction>(), file_content, args, path_str
+    );
+
+    if (!success || g_ast_violation_found) {
+        enforce_system_halt("NATIVE_AST_PARSER", "AST structural safety validation failure.", path_str);
+    }
 
 
 // 3. मैनेज्ड (Java/Kotlin) सोर्सेज स्कैनिंग
