@@ -40,20 +40,60 @@ private:
     int global_ref_created = 0;
     int global_ref_destroyed = 0;
 
-    void trigger_violation(clang::Stmt *StmtPtr, const std::string &msg) {
+        void trigger_violation(clang::Stmt *StmtPtr, const std::string &msg) {
         g_ast_violation_found = true;
         clang::SourceLocation Loc = StmtPtr->getBeginLoc();
-        clang::FullSourceLoc FullLoc(Loc, ASTContextPtr->getSourceManager());
-        unsigned int line_num = FullLoc.isValid() ? FullLoc.getSpellingLineNumber() : 0;
-        enforce_system_halt("IRONCLAD_AST_ANALYZER", msg, g_current_scan_file, line_num);
+        clang::SourceManager &SM = ASTContextPtr->getSourceManager();
+
+        // 1. मैक्रो के झंझट से बचने के लिए पहले एक्सपेंशन लोकेशन लें
+        clang::SourceLocation ExpansionLoc = SM.getExpansionLoc(Loc);
+
+        // 2. PresumedLoc का इस्तेमाल करें (यह फाइल नाम और लाइन नंबर दोनों एक साथ सटीक देता है)
+        clang::PresumedLoc PLoc = SM.getPresumedLoc(ExpansionLoc);
+
+        if (PLoc.isInvalid()) {
+            enforce_system_halt("IRONCLAD_AST_ANALYZER", msg, g_current_scan_file, 0);
+            return;
+        }
+
+        std::string FileName = PLoc.getFilename();
+
+        // 3. चेक करें कि क्या यह आपकी अपनी मुख्य फाइल है या नहीं
+        if (FileName.empty() || FileName.find("true-singularity-core.cpp") == std::string::npos) {
+            return;
+        }
+
+        // 4. 101% सटीक लाइन नंबर के साथ सिस्टम को रोकें
+        unsigned int exactLine = PLoc.getLine();
+        enforce_system_halt("IRONCLAD_AST_ANALYZER", msg, FileName, exactLine);
     }
 
     void trigger_violation_decl(clang::Decl *DeclPtr, const std::string &msg) {
         g_ast_violation_found = true;
         clang::SourceLocation Loc = DeclPtr->getBeginLoc();
-        clang::FullSourceLoc FullLoc(Loc, ASTContextPtr->getSourceManager());
-        unsigned int line_num = FullLoc.isValid() ? FullLoc.getSpellingLineNumber() : 0;
-        enforce_system_halt("IRONCLAD_AST_ANALYZER", msg, g_current_scan_file, line_num);
+        clang::SourceManager &SM = ASTContextPtr->getSourceManager();
+
+        // 1. मैक्रो के झंझट से बचने के लिए पहले एक्सपेंशन लोकेशन लें
+        clang::SourceLocation ExpansionLoc = SM.getExpansionLoc(Loc);
+
+        // 2. PresumedLoc का इस्तेमाल करें
+        clang::PresumedLoc PLoc = SM.getPresumedLoc(ExpansionLoc);
+
+        if (PLoc.isInvalid()) {
+            enforce_system_halt("IRONCLAD_AST_ANALYZER", msg, g_current_scan_file, 0);
+            return;
+        }
+
+        std::string FileName = PLoc.getFilename();
+
+        // 3. चेक करें कि क्या यह आपकी अपनी मुख्य फाइल है या नहीं
+        if (FileName.empty() || FileName.find("true-singularity-core.cpp") == std::string::npos) {
+            return;
+        }
+
+        // 4. 101% सटीक लाइन नंबर के साथ सिस्टम को रोकें
+        unsigned int exactLine = PLoc.getLine();
+        enforce_system_halt("IRONCLAD_AST_ANALYZER", msg, FileName, exactLine);
     }
 
 public:
