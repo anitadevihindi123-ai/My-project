@@ -80,9 +80,11 @@ jobs:
           LLVM_LIB_DIR=$(llvm-config-18 --libdir)
           AUTO_LIBS=$(find "$LLVM_LIB_DIR" \( -name "libclang*.a" ! -name "*clang_rt*" \) -o -name "libllvm*.a" -o -name "libclang-cpp*.so" 2>/dev/null | sed 's|.*/lib\(.*\)\.[as][oa]|-l\1|' | sort -u | tr '\n' ' ')
           
-          g++ -O3 -std=c++17 app/src/main/cpp/EngineCoreCompilerWrapper.cpp \
+                    g++ -O3 -std=c++17 app/src/main/cpp/EngineCoreCompilerWrapper.cpp \
           -o engine_host_scanner \
           $(llvm-config-18 --cxxflags --ldflags) \
+          -I$ANDROID_HOME/ndk/26.1.10909125/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/include \
+          -I$ANDROID_HOME/ndk/26.1.10909125/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/include/android \
           -Wl,--start-group \
           $AUTO_LIBS \
           $(llvm-config-18 --libs all --system-libs 2>/dev/null || true) \
