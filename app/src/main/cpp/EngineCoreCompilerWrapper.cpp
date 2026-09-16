@@ -272,7 +272,7 @@ void scan_native_sources(const fs::path& root_dir) {
             }
         }
     }
-
+}
 // 3. मैनेज्ड (Java/Kotlin) सोर्सेज स्कैनिंग
 void scan_managed_sources(const fs::path& root_dir) {
     for (auto const& dir_entry : fs::recursive_directory_iterator(root_dir)) {
