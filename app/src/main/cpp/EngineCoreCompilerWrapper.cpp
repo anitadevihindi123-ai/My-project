@@ -219,7 +219,7 @@ void scan_native_sources(const fs::path& root_dir) {
     }
 
     // 3. मुख्य स्कैनिंग लूप (डबल ट्राई-कैच और फ्लैग रीसेट सुरक्षा के साथ)
-    try {
+        try {
         for (auto const& dir_entry : fs::recursive_directory_iterator(root_dir)) {
             if (dir_entry.is_regular_file()) {
                 std::string path_str = dir_entry.path().string();
@@ -274,7 +274,10 @@ void scan_native_sources(const fs::path& root_dir) {
             }
         }
     }    
- }
+    catch (...) {
+        // ट्राई ब्लॉक की सुरक्षा के लिए कैच ब्लॉक
+    }
+}
 
 // 3. मैनेज्ड (Java/Kotlin) सोर्सेज स्कैनिंग
 void scan_managed_sources(const fs::path& root_dir) {
