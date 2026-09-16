@@ -219,65 +219,59 @@ void scan_native_sources(const fs::path& root_dir) {
     }
 
     // 3. मुख्य स्कैनिंग लूप (डबल ट्राई-कैच और फ्लैग रीसेट सुरक्षा के साथ)
-        try {
-        for (auto const& dir_entry : fs::recursive_directory_iterator(root_dir)) {
-            if (dir_entry.is_regular_file()) {
-                std::string path_str = dir_entry.path().string();
-                if (dir_entry.path().filename() == "EngineCoreCompilerWrapper.cpp" || is_generated_or_build_path(path_str)) continue;
+            for (auto const& dir_entry : fs::recursive_directory_iterator(root_dir)) {
+        if (dir_entry.is_regular_file()) {
+            std::string path_str = dir_entry.path().string();
+            if (dir_entry.path().filename() == "EngineCoreCompilerWrapper.cpp" || is_generated_or_build_path(path_str)) continue;
 
-                std::string ext = dir_entry.path().extension().string();
-                if (ext == ".cpp" || ext == ".h" || ext == ".hpp" || ext == ".cc") {
-                    
-                    // हर नई फाइल के स्कैन से पहले ग्लोबल वॉयलेशन फ्लैग पूरी तरह रीसेट
-                    g_ast_violation_found = false;
-                    g_current_scan_file = path_str;
+            std::string ext = dir_entry.path().extension().string();
+            if (ext == ".cpp" || ext == ".h" || ext == ".hpp" || ext == ".cc") {
+                
+                // हर नई फाइल के स्कैन से पहले ग्लोबल वॉयलेशन फ्लैग पूरी तरह रीसेट
+                g_ast_violation_found = false;
+                g_current_scan_file = path_str;
 
-                    std::ifstream t(path_str);
-                    if (!t.is_open()) continue;
-                    std::string file_content((std::istreambuf_iterator<char>(t)), std::istreambuf_iterator<char>());
+                std::ifstream t(path_str);
+                if (!t.is_open()) continue;
+                std::string file_content((std::istreambuf_iterator<char>(t)), std::istreambuf_iterator<char>());
 
-                    std::vector<std::string> args = {
-                        "-fsyntax-only", "-std=c++17", "-x", "c++"
-                    };
+                std::vector<std::string> args = {
+                    "-fsyntax-only", "-std=c++17", "-x", "c++"
+                };
 
-                    if (!ndk_cxx_include.empty()) {
-                        args.push_back("-isystem");
-                        args.push_back(ndk_cxx_include);
-                    }
-                    if (!ndk_sysroot.empty()) {
-        args.push_back("-isystem");
-        args.push_back(ndk_sysroot);
-    }
-    if (!ndk_arch_include.empty()) {
-        args.push_back("-isystem");
-        args.push_back(ndk_arch_include);
-    }
-    if (!clang_builtin_include.empty()) {
-        args.push_back("-isystem");
-        args.push_back(clang_builtin_include);
-    }
+                if (!ndk_cxx_include.empty()) {
+                    args.push_back("-isystem");
+                    args.push_back(ndk_cxx_include);
+                }
+                if (!ndk_sysroot.empty()) {
+                    args.push_back("-isystem");
+                    args.push_back(ndk_sysroot);
+                }
+                if (!ndk_arch_include.empty()) {
+                    args.push_back("-isystem");
+                    args.push_back(ndk_arch_include);
+                }
+                if (!clang_builtin_include.empty()) {
+                    args.push_back("-isystem");
+                    args.push_back(clang_builtin_include);
+                }
 
-    args.push_back("-target");
-    args.push_back("aarch64-none-linux-android");
-    args.push_back("-U__STRICT_ANSI__");
-    args.push_back("-D_GNU_SOURCE");
+                args.push_back("-target");
+                args.push_back("aarch64-none-linux-android");
+                args.push_back("-U__STRICT_ANSI__");
+                args.push_back("-D_GNU_SOURCE");
 
-    // सीधा और फौलादी एक्सेक्यूशन (बिना किसी try-catch के)
-    bool success = clang::tooling::runToolOnCodeWithArgs(
-        std::make_unique<IroncladEngineSafetyAction>(), file_content, args, path_str
-    );
+                // सीधा और फौलादी एक्सेक्यूशन (बिना किसी try-catch के)
+                bool success = clang::tooling::runToolOnCodeWithArgs(
+                    std::make_unique<IroncladEngineSafetyAction>(), file_content, args, path_str
+                );
 
-    if (!success || g_ast_violation_found) {
-        enforce_system_halt("NATIVE_AST_PARSER", "AST structural safety validation failure.", path_str);
-    }
+                if (!success || g_ast_violation_found) {
+                    enforce_system_halt("NATIVE_AST_PARSER", "AST structural safety validation failure.", path_str);
                 }
             }
         }
-    }    
-    catch (...) {
-        // ट्राई ब्लॉक की सुरक्षा के लिए कैच ब्लॉक
     }
-}
 
 // 3. मैनेज्ड (Java/Kotlin) सोर्सेज स्कैनिंग
 void scan_managed_sources(const fs::path& root_dir) {
