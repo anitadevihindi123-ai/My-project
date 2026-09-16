@@ -270,7 +270,11 @@ void scan_native_sources(const fs::path& root_dir) {
     if (!success || g_ast_violation_found) {
         enforce_system_halt("NATIVE_AST_PARSER", "AST structural safety validation failure.", path_str);
     }
-
+                }
+            }
+        }
+    }    
+ }
 
 // 3. मैनेज्ड (Java/Kotlin) सोर्सेज स्कैनिंग
 void scan_managed_sources(const fs::path& root_dir) {
