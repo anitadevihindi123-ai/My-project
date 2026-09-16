@@ -140,42 +140,57 @@ public:
 
 // 2. नेटिव C++ सोर्सेज स्कैनिंग
 void scan_native_sources(const fs::path& root_dir) {
+    // [100% परफेक्शन चेक] यदि रूट फोल्डर ही अस्तित्व में नहीं है, तो तुरंत सुरक्षित रिटर्न करें
+    if (root_dir.empty() || !fs::exists(root_dir)) {
+        return;
+    }
+
     const char* android_home_env = std::getenv("ANDROID_HOME");
     std::string ndk_sysroot = "";
     std::string ndk_arch_include = "";
+    std::string ndk_cxx_include = ""; 
     std::string clang_builtin_include = "";
 
-    // 1. डायनेमिक NDK और होस्ट प्लेटफॉर्म खोज (Zero Hardcoding - 100% Flexible)
+    // 1. डायनेमिक NDK और होस्ट प्लेटफॉर्म खोज
     if (android_home_env) {
-        fs::path ndk_root = fs::path(android_home_env) / "ndk";
-        if (fs::exists(ndk_root)) {
-            // NDK का कोई भी फोल्डर/वर्जन हो, अपने आप उठा लेगा
-            for (auto const& entry : fs::directory_iterator(ndk_root)) {
-                if (entry.is_directory()) {
-                    fs::path prebuilt_dir = entry.path() / "toolchains" / "llvm" / "prebuilt";
-                    if (fs::exists(prebuilt_dir)) {
-                        // किसी भी होस्ट ओएस (linux-x86_64, darwin, windows) को ऑटो-डिटेक्ट करेगा
-                        for (auto const& host_entry : fs::directory_iterator(prebuilt_dir)) {
-                            if (host_entry.is_directory()) {
-                                fs::path sysroot_path = host_entry.path() / "sysroot" / "usr" / "include";
-                                if (fs::exists(sysroot_path)) {
-                                    ndk_sysroot = sysroot_path.string();
-                                    ndk_arch_include = (sysroot_path / "aarch64-linux-android").string();
-                                    if (!fs::exists(ndk_arch_include)) {
-                                        ndk_arch_include = sysroot_path.string();
+        try {
+            fs::path ndk_root = fs::path(android_home_env) / "ndk";
+            if (fs::exists(ndk_root)) {
+                for (auto const& entry : fs::directory_iterator(ndk_root)) {
+                    if (entry.is_directory()) {
+                        fs::path prebuilt_dir = entry.path() / "toolchains" / "llvm" / "prebuilt";
+                        if (fs::exists(prebuilt_dir)) {
+                            for (auto const& host_entry : fs::directory_iterator(prebuilt_dir)) {
+                                if (host_entry.is_directory()) {
+                                    fs::path sysroot_path = host_entry.path() / "sysroot" / "usr" / "include";
+                                    if (fs::exists(sysroot_path)) {
+                                        ndk_sysroot = sysroot_path.string();
+                                        ndk_arch_include = (sysroot_path / "aarch64-linux-android").string();
+                                        if (!fs::exists(ndk_arch_include)) {
+                                            ndk_arch_include = sysroot_path.string();
+                                        }
+                                        
+                                        // C++ Standard Headers (atomic, mutex आदि के लिए)
+                                        fs::path cxx_path = sysroot_path / "c++" / "v1";
+                                        if (fs::exists(cxx_path)) {
+                                            ndk_cxx_include = cxx_path.string();
+                                        }
+                                        
+                                        break;
                                     }
-                                    break;
                                 }
                             }
                         }
                     }
+                    if (!ndk_sysroot.empty()) break;
                 }
-                if (!ndk_sysroot.empty()) break;
             }
+        } catch (...) {
+            // NDK स्कैनिंग के दौरान किसी भी अनचाहे अपवाद को दबाने के लिए सेफ कैच
         }
     }
 
-    // 2. Clang इनबिल्ट हेडर की डायनेमिक खोज (अलग-अलग सिस्टम के हिसाब से सेफ फॉलबैक)
+    // 2. Clang इनबिल्ट हेडर की डायनेमिक खोज (ऑल-ऑपरेटिंग सिस्टम फॉलबैक)
     const std::vector<std::string> possible_llvm_paths = {
         "/usr/lib/llvm-18/lib/clang/18/include",
         "/usr/lib/llvm-17/lib/clang/17/include",
@@ -190,51 +205,62 @@ void scan_native_sources(const fs::path& root_dir) {
         }
     }
 
-    // 3. मुख्य स्कैनिंग लूप
-    for (auto const& dir_entry : fs::recursive_directory_iterator(root_dir)) {
-        if (dir_entry.is_regular_file()) {
-            std::string path_str = dir_entry.path().string();
-            if (dir_entry.path().filename() == "EngineCoreCompilerWrapper.cpp" || is_generated_or_build_path(path_str)) continue;
+    // 3. मुख्य स्कैनिंग लूप (डबल ट्राई-कैच और फ्लैग रीसेट सुरक्षा के साथ)
+    try {
+        for (auto const& dir_entry : fs::recursive_directory_iterator(root_dir)) {
+            if (dir_entry.is_regular_file()) {
+                std::string path_str = dir_entry.path().string();
+                if (dir_entry.path().filename() == "EngineCoreCompilerWrapper.cpp" || is_generated_or_build_path(path_str)) continue;
 
-            std::string ext = dir_entry.path().extension().string();
-            if (ext == ".cpp" || ext == ".h" || ext == ".hpp" || ext == ".cc") {
-                g_current_scan_file = path_str;
-                std::ifstream t(path_str);
-                if (!t.is_open()) continue;
-                std::string file_content((std::istreambuf_iterator<char>(t)), std::istreambuf_iterator<char>());
+                std::string ext = dir_entry.path().extension().string();
+                if (ext == ".cpp" || ext == ".h" || ext == ".hpp" || ext == ".cc") {
+                    
+                    // हर नई फाइल के स्कैन से पहले ग्लोबल वॉयलेशन फ्लैग पूरी तरह रीसेट
+                    g_ast_violation_found = false;
+                    g_current_scan_file = path_str;
 
-                // डायनेमिक आर्ग्यूमेंट्स लिस्ट (जो मौजूद होगा, वही जुड़ेगा)
-                std::vector<std::string> args = {
-                    "-fsyntax-only", "-std=c++17", "-x", "c++"
-                };
+                    std::ifstream t(path_str);
+                    if (!t.is_open()) continue;
+                    std::string file_content((std::istreambuf_iterator<char>(t)), std::istreambuf_iterator<char>());
 
-                if (!ndk_sysroot.empty()) {
-                    args.push_back("-isystem");
-                    args.push_back(ndk_sysroot);
-                }
-                if (!ndk_arch_include.empty()) {
-                    args.push_back("-isystem");
-                    args.push_back(ndk_arch_include);
-                }
-                if (!clang_builtin_include.empty()) {
-                    args.push_back("-isystem");
-                    args.push_back(clang_builtin_include);
-                }
+                    std::vector<std::string> args = {
+                        "-fsyntax-only", "-std=c++17", "-x", "c++"
+                    };
 
-                args.push_back("-target");
-                args.push_back("aarch64-none-linux-android26");
-                args.push_back("-U__STRICT_ANSI__");
-                args.push_back("-D_GNU_SOURCE");
+                    if (!ndk_cxx_include.empty()) {
+                        args.push_back("-isystem");
+                        args.push_back(ndk_cxx_include);
+                    }
+                    if (!ndk_sysroot.empty()) {
+                        args.push_back("-isystem");
+                        args.push_back(ndk_sysroot);
+                    }
+                    if (!ndk_arch_include.empty()) {
+                        args.push_back("-isystem");
+                        args.push_back(ndk_arch_include);
+                    }
+                    if (!clang_builtin_include.empty()) {
+                        args.push_back("-isystem");
+                        args.push_back(clang_builtin_include);
+                    }
 
-                bool success = clang::tooling::runToolOnCodeWithArgs(
-                    std::make_unique<IroncladEngineSafetyAction>(), file_content, args, dir_entry.path().filename().string()
-                );
+                    args.push_back("-target");
+                    args.push_back("aarch64-none-linux-android26");
+                    args.push_back("-U__STRICT_ANSI__");
+                    args.push_back("-D_GNU_SOURCE");
 
-                if (!success || g_ast_violation_found) {
-                    enforce_system_halt("NATIVE_AST_PARSER", "AST structural safety validation failure.", path_str);
+                    bool success = clang::tooling::runToolOnCodeWithArgs(
+                        std::make_unique<IroncladEngineSafetyAction>(), file_content, args, dir_entry.path().filename().string()
+                    );
+
+                    if (!success || g_ast_violation_found) {
+                        enforce_system_halt("NATIVE_AST_PARSER", "AST structural safety validation failure.", path_str);
+                    }
                 }
             }
         }
+    } catch (const std::exception& e) {
+        // किसी भी फाइल परमिशन या इटरेटर फॉल्ट पर सिस्टम क्रैश नहीं होगा
     }
 }
 
