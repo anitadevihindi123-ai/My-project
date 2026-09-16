@@ -9,7 +9,9 @@
 #endif
 #include <features.h>
 #pragma clang diagnostic ignored "-Wunguarded-availability"
+#ifdef __ANDROID__
 #include <jni.h>
+#endif
 #include <atomic>
 #include <vector>
 #include <string>
@@ -21,6 +23,7 @@
 #include <android/log.h>
 #include <stdexcept>
 #include <vulkan/vulkan.h>
+#ifdef __ANDROID__
 #include <android/native_window.h>
 #include <android/native_window_jni.h>
 #include <vulkan/vulkan_android.h>
@@ -28,6 +31,7 @@
 #include <android/hardware_buffer_jni.h>
 #include <android/asset_manager.h>
 #include <android/asset_manager_jni.h>
+#endif
 #include <thread>
 #include <chrono>
 #include <fcntl.h>
