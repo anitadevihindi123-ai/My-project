@@ -1112,11 +1112,16 @@ Java_com_my_newproject_truesingularityclass_nativeExecuteMasterOmniPipeline(
     return env->NewStringUTF(result.c_str());
 }
 
-
 extern "C" JNIEXPORT void JNICALL
 Java_com_my_newproject_truesingularityclass_nativeProcessDirectPixelBuffer(
         JNIEnv *env, jobject thiz, jobject hardwareBufferObj, jfloat zoomFactor, jlong frameIndex) {
-    if (!hardwareBufferObj || !g_finalEngine || !g_finalEngine->initialized) return;
+    
+    if (!env || !hardwareBufferObj) return;
+
+    PureMetalEngine* engine = g_finalEngine.load(std::memory_order_acquire);
+    if (!engine || !g_engineInitialized.load(std::memory_order_acquire)) {
+        return;
+    }
 
     AHardwareBuffer* hb = AndroidNativeLoader::getInstance().createFromJava(env, hardwareBufferObj);
     if (!hb) return;
@@ -1134,6 +1139,7 @@ Java_com_my_newproject_truesingularityclass_nativeProcessDirectPixelBuffer(
     );
 
     if (result != 0 || !virtAddress) {
+        AHardwareBuffer_release(hb);
         return; 
     }
 
@@ -1142,33 +1148,58 @@ Java_com_my_newproject_truesingularityclass_nativeProcessDirectPixelBuffer(
         uint32_t *row = pixels + (y * (desc.stride / 4)); 
         for (uint32_t x = 0; x < desc.width; ++x) {
             uint32_t pixel = row[x];
-            row[x] = pixel; 
+            row[x] = pixel; // यहाँ तेरा पिक्सल मैनिपुलेशन लॉजिक है
         }
     }
 
     AHardwareBuffer_unlock(hb, nullptr);
+    AHardwareBuffer_release(hb);
 }
-
 
 extern "C" JNIEXPORT void JNICALL
 Java_com_my_newproject_truesingularityclass_nativeInitWindow(
         JNIEnv *env, jobject thiz, jobject surfaceObj) {
-    if (!g_finalEngine) return;
+    
+    if (!env || !surfaceObj) return;
+
+    PureMetalEngine* engine = g_finalEngine.load(std::memory_order_acquire);
+    if (!engine) {
+        return;
+    }
+
     ANativeWindow* window = ANativeWindow_fromSurface(env, surfaceObj);
-    g_finalEngine->initWindow(window);
+    if (!window) {
+        return;
+    }
+
+    engine->initWindow(window);
 }
+
 
 extern "C" JNIEXPORT void JNICALL
 Java_com_my_newproject_truesingularityclass_nativeDestroyWindow(
         JNIEnv *env, jobject thiz) {
-    if (!g_finalEngine) return;
-    g_finalEngine->destroyWindow();
+    
+    if (!env) return;
+
+    PureMetalEngine* engine = g_finalEngine.load(std::memory_order_acquire);
+    if (!engine) {
+        return;
+    }
+
+    engine->destroyWindow();
 }
+
 JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM* vm, void* reserved) {
+    if (!vm) return JNI_ERR;
+
     JNIEnv* env = nullptr;
     if (vm->GetEnv(reinterpret_cast<void**>(&env), JNI_VERSION_1_6) != JNI_OK) {
         return JNI_ERR;
     }
+    
     AndroidNativeLoader::getInstance().initialize();
+    
     return JNI_VERSION_1_6;
 }
+
