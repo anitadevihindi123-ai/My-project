@@ -899,30 +899,28 @@ VK_CHECK(vkBindImageMemory(Engine->device, newImg.vkImage, newImg.vkMemory, 0));
         frame.frameOutputView = cachedImg.vkImageView;
     }
 }
-// 64-byte aligned raw memory matrix with a dedicated Mutex Lock for Engine Initialization Access
 alignas(64) static uint8_t g_masterEngineRawBuffer[sizeof(PureMetalEngine)];
 static std::atomic<bool> g_engineInitialized{false};
-static std::mutex g_engineInitMutex; // <--- यह नया म्यूटैक्स गार्ड थ्रेड-सेफ्टी की गारंटी देगा
+static std::mutex g_engineInitMutex;
+
 extern "C" JNIEXPORT void JNICALL
 Java_com_my_newproject_truesingularityclass_nativeInitMasterEngine(
         JNIEnv *env, jobject thiz, jlong seed, jint targetWidth, jint targetHeight) {
-    
-    // डबल-चेक्ड लॉकिंग पैटर्न (Double-Checked Locking Pattern) - Zero Lag, Max Performance
     if (!g_engineInitialized.load(std::memory_order_acquire)) {
         std::lock_guard<std::mutex> lock(g_engineInitMutex);
         if (!g_engineInitialized.load(std::memory_order_relaxed)) {
-            
-            g_finalEngine = reinterpret_cast<PureMetalEngine*>(g_masterEngineRawBuffer);
             __builtin_memset(g_masterEngineRawBuffer, 0, sizeof(PureMetalEngine));
-            
-            g_finalEngine->setEntropySeed(seed);
-            g_finalEngine->configureViewport(targetWidth, targetHeight);
-            
+            PureMetalEngine* ptr = new (g_masterEngineRawBuffer) PureMetalEngine();
+            g_finalEngine.store(ptr, std::memory_order_relaxed);
+            PureMetalEngine* engine = g_finalEngine.load(std::memory_order_relaxed);
+            if (engine) {
+                engine->setEntropySeed(seed);
+                engine->configureViewport(targetWidth, targetHeight);
+            }
             g_engineInitialized.store(true, std::memory_order_release);
         }
     }
 }
-
 
 extern "C" JNIEXPORT void JNICALL
 Java_com_my_newproject_truesingularityclass_nativeInitAssetManager(
