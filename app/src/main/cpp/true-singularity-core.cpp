@@ -994,10 +994,17 @@ Java_com_my_newproject_truesingularityclass_nativeGetZoomShader(
 extern "C" JNIEXPORT void JNICALL
 Java_com_my_newproject_truesingularityclass_nativeExecuteMultiFrameRawStacking(
         JNIEnv *env, jobject thiz, jobjectArray hardwareBuffersArray) {
-    if (!g_finalEngine || !g_finalEngine->initialized || !hardwareBuffersArray) return;
+    
+    if (!env || !hardwareBuffersArray) return;
+
+    PureMetalEngine* engine = g_finalEngine.load(std::memory_order_acquire);
+    if (!engine || !g_engineInitialized.load(std::memory_order_acquire)) {
+        return;
+    }
 
     jsize count = env->GetArrayLength(hardwareBuffersArray);
     if (count <= 0) return;
+
     std::vector<AHardwareBuffer*> frameBuffers;
     uint32_t imgWidth = 0;
     uint32_t imgHeight = 0;
@@ -1008,7 +1015,6 @@ Java_com_my_newproject_truesingularityclass_nativeExecuteMultiFrameRawStacking(
             AHardwareBuffer* hb = AndroidNativeLoader::getInstance().createFromJava(env, hbObj);
             if (hb) {
                 frameBuffers.push_back(hb);
-                // **[फिक्स 1]: यहाँ से इमेज की सही चौड़ाई और ऊँचाई निकाली जा रही है**
                 if (imgWidth == 0) {
                     AHardwareBuffer_Desc desc;
                     AHardwareBuffer_describe(hb, &desc);
@@ -1022,18 +1028,17 @@ Java_com_my_newproject_truesingularityclass_nativeExecuteMultiFrameRawStacking(
 
     if (frameBuffers.empty()) return;
 
-    uint32_t curFrameIdx = g_finalEngine->currentFrameIndex;
-    FinalFrameContext& frame = g_finalEngine->frames[curFrameIdx];
-    g_finalEngine->currentFrameIndex = (curFrameIdx + 1) % MAX_FRAMES_IN_FLIGHT;
+    uint32_t curFrameIdx = engine->currentFrameIndex;
+    FinalFrameContext& frame = engine->frames[curFrameIdx];
+    engine->currentFrameIndex = (curFrameIdx + 1) % MAX_FRAMES_IN_FLIGHT;
 
     std::vector<VkDescriptorImageInfo> imageInfos;
     std::vector<VkWriteDescriptorSet> writeDescriptorSets;
     imageInfos.resize(frameBuffers.size());
 
     for (size_t i = 0; i < frameBuffers.size(); ++i) {
-        imageInfos[i].sampler = g_finalEngine->defaultSampler;
-        imageInfos[i].imageView = g_finalEngine->GetOrCreateImageViewFromAHB(frameBuffers[i]); 
-        // **[फिक्स 2]: स्टोरेज इमेज के लिए सही लेआउट**
+        imageInfos[i].sampler = engine->defaultSampler;
+        imageInfos[i].imageView = engine->GetOrCreateImageViewFromAHB(frameBuffers[i]); 
         imageInfos[i].imageLayout = VK_IMAGE_LAYOUT_GENERAL;
 
         VkWriteDescriptorSet write = {};
@@ -1041,22 +1046,21 @@ Java_com_my_newproject_truesingularityclass_nativeExecuteMultiFrameRawStacking(
         write.dstSet = frame.descriptorSet;
         write.dstBinding = 0; 
         write.dstArrayElement = static_cast<uint32_t>(i);
-        // **[फिक्स 3]: सही डिस्criptor टाइप**
         write.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
         write.descriptorCount = 1;
         write.pImageInfo = &imageInfos[i];
         writeDescriptorSets.push_back(write);
     }
 
-    vkUpdateDescriptorSets(g_finalEngine->device, static_cast<uint32_t>(writeDescriptorSets.size()), writeDescriptorSets.data(), 0, nullptr);
+    vkUpdateDescriptorSets(engine->device, static_cast<uint32_t>(writeDescriptorSets.size()), writeDescriptorSets.data(), 0, nullptr);
 
     VkCommandBufferBeginInfo beginInfo = {};
     beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
     beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
 
     vkBeginCommandBuffer(frame.commandBuffer, &beginInfo);
-    vkCmdBindPipeline(frame.commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, g_finalEngine->computePipeline);
-    vkCmdBindDescriptorSets(frame.commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, g_finalEngine->pipelineLayout, 0, 1, &frame.descriptorSet, 0, nullptr);
+    vkCmdBindPipeline(frame.commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, engine->computePipeline);
+    vkCmdBindDescriptorSets(frame.commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, engine->pipelineLayout, 0, 1, &frame.descriptorSet, 0, nullptr);
     
     vkCmdDispatch(frame.commandBuffer, (imgWidth + 15) / 16, (imgHeight + 15) / 16, 1);
 
@@ -1067,8 +1071,8 @@ Java_com_my_newproject_truesingularityclass_nativeExecuteMultiFrameRawStacking(
     submitInfo.commandBufferCount = 1;
     submitInfo.pCommandBuffers = &frame.commandBuffer;
 
-    vkQueueSubmit(g_finalEngine->computeQueue, 1, &submitInfo, VK_NULL_HANDLE);
-    vkQueueWaitIdle(g_finalEngine->computeQueue);
+    vkQueueSubmit(engine->computeQueue, 1, &submitInfo, VK_NULL_HANDLE);
+    vkQueueWaitIdle(engine->computeQueue);
 
     for (auto* hb : frameBuffers) {
         if (hb) {
@@ -1076,7 +1080,6 @@ Java_com_my_newproject_truesingularityclass_nativeExecuteMultiFrameRawStacking(
         }
     }
 }
-
 
 extern "C" JNIEXPORT void JNICALL
 Java_com_my_newproject_truesingularityclass_nativeApplyGyroStabilization(
