@@ -1084,14 +1084,26 @@ Java_com_my_newproject_truesingularityclass_nativeExecuteMultiFrameRawStacking(
 extern "C" JNIEXPORT void JNICALL
 Java_com_my_newproject_truesingularityclass_nativeApplyGyroStabilization(
         JNIEnv *env, jobject thiz, jfloat gyroX, jfloat gyroY, jfloat gyroZ) {
-    if (!g_finalEngine || !g_finalEngine->initialized) return;
-    g_finalEngine->gyroShiftX.store(gyroX);
-    g_finalEngine->gyroShiftY.store(gyroY);
+    
+    if (!env) return;
+
+    PureMetalEngine* engine = g_finalEngine.load(std::memory_order_acquire);
+    if (!engine || !g_engineInitialized.load(std::memory_order_acquire)) {
+        return;
+    }
+
+    engine->gyroShiftX.store(gyroX);
+    engine->gyroShiftY.store(gyroY);
 }
+
 extern "C" JNIEXPORT jstring JNICALL
 Java_com_my_newproject_truesingularityclass_nativeExecuteMasterOmniPipeline(
         JNIEnv *env, jobject thiz, jfloat zoomVal, jfloat temperatureVal) {
-    if (!g_finalEngine || !g_finalEngine->initialized) {
+    
+    if (!env) return nullptr;
+
+    PureMetalEngine* engine = g_finalEngine.load(std::memory_order_acquire);
+    if (!engine || !g_engineInitialized.load(std::memory_order_acquire)) {
         return env->NewStringUTF("Engine not initialized");
     }
     
@@ -1099,6 +1111,8 @@ Java_com_my_newproject_truesingularityclass_nativeExecuteMasterOmniPipeline(
                          std::to_string(zoomVal) + ", Temp: " + std::to_string(temperatureVal) + ")";
     return env->NewStringUTF(result.c_str());
 }
+
+
 extern "C" JNIEXPORT void JNICALL
 Java_com_my_newproject_truesingularityclass_nativeProcessDirectPixelBuffer(
         JNIEnv *env, jobject thiz, jobject hardwareBufferObj, jfloat zoomFactor, jlong frameIndex) {
