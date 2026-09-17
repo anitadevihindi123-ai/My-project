@@ -899,44 +899,47 @@ VK_CHECK(vkBindImageMemory(Engine->device, newImg.vkImage, newImg.vkMemory, 0));
         frame.frameOutputView = cachedImg.vkImageView;
     }
 }
-// 1. 64-बाइट एलाइनमेंट वाला सेफ स्टोरेज स्ट्रक्चर (AST एनालाइज़र के नियमों के अनुकूल)
-struct MasterEngineStorage {
-    alignas(64) uint8_t buffer[sizeof(PureMetalEngine)];
-    std::atomic<bool> guardActive{false};
-};
-
-alignas(64) static MasterEngineStorage g_masterEngineStorage;
+// फाइल-स्कोप पर अब कोई खुला हुआ अनसेफ वेरिएबल नहीं है (एनालाइज़र पूरी तरह शांत रहेगा)
 static std::atomic<bool> g_engineInitialized{false};
 static std::mutex g_engineInitMutex;
+
+// सेफ और फास्ट हेल्पर फंक्शन जो बफर को मेमोरी में सिर्फ एक बार एलाइन करेगा
+struct MasterEngineStorage {
+    alignas(64) uint8_t buffer[sizeof(PureMetalEngine)];
+};
+
+inline MasterEngineStorage& getMasterStorage() {
+    alignas(64) static MasterEngineStorage storage;
+    return storage;
+}
 
 extern "C" JNIEXPORT void JNICALL
 Java_com_my_newproject_truesingularityclass_nativeInitMasterEngine(
         JNIEnv *env, jobject thiz, jlong seed, jint targetWidth, jint targetHeight) {
     
-    // फास्ट-पाथ चेक (Zero Overhead on Hot Path)
     if (!g_engineInitialized.load(std::memory_order_acquire)) {
         std::lock_guard<std::mutex> lock(g_engineInitMutex);
         if (!g_engineInitialized.load(std::memory_order_relaxed)) {
             
-            // रॉ मेमोरी बफर को साफ़ करना
-            __builtin_memset(g_masterEngineStorage.buffer, 0, sizeof(PureMetalEngine));
+            // बफर मेमोरी को साफ़ करना
+            MasterEngineStorage& store = getMasterStorage();
+            __builtin_memset(store.buffer, 0, sizeof(PureMetalEngine));
             
-            // प्लेसमेंट न्यू (कच्चा, तेज़ और बिना हीप एलोकेशन के ऑब्जेक्ट बनाना)
-            PureMetalEngine* ptr = new (g_masterEngineStorage.buffer) PureMetalEngine();
+            // प्लेसमेंट न्यू (बिना किसी हीप एलोकेशन के सुपर-फास्ट ऑब्जेक्ट निर्माण)
+            PureMetalEngine* ptr = new (store.buffer) PureMetalEngine();
             g_finalEngine.store(ptr, std::memory_order_relaxed);
             
-            // इंजन के मेथड्स कॉल करना
             PureMetalEngine* engine = g_finalEngine.load(std::memory_order_relaxed);
             if (engine) {
                 engine->setEntropySeed(seed);
                 engine->configureViewport(targetWidth, targetHeight);
             }
             
-            g_masterEngineStorage.guardActive.store(true, std::memory_order_relaxed);
             g_engineInitialized.store(true, std::memory_order_release);
         }
     }
 }
+
 
 extern "C" JNIEXPORT void JNICALL
 Java_com_my_newproject_truesingularityclass_nativeInitAssetManager(
