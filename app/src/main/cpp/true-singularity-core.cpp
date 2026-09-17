@@ -925,32 +925,61 @@ Java_com_my_newproject_truesingularityclass_nativeInitMasterEngine(
 extern "C" JNIEXPORT void JNICALL
 Java_com_my_newproject_truesingularityclass_nativeInitAssetManager(
         JNIEnv *env, jobject thiz, jobject assetManagerObj) {
-    if (g_finalEngine) {
+    
+    // एटॉमिक तरीके से सेफली लोड करें ताकि कोई रेस कंडीशन न आए
+    PureMetalEngine* engine = g_finalEngine.load(std::memory_order_acquire);
+    
+    if (engine) {
         AAssetManager* assetManager = AAssetManager_fromJava(env, assetManagerObj);
-        g_finalEngine->ignite(assetManager);
+        if (assetManager) {
+            engine->ignite(assetManager);
+        }
     }
 }
 
 extern "C" JNIEXPORT void JNICALL
 Java_com_my_newproject_truesingularityclass_nativeDestroyMasterEngine(
         JNIEnv *env, jobject thiz) {
-    if (g_engineInitialized) {
-    g_engineInitialized = false;
-    g_finalEngine = nullptr;
-  }
+    
+    // पहले चेक करें कि क्या इंजन सच में इनिशियलाइज्ड है
+    if (g_engineInitialized.load(std::memory_order_acquire)) {
+        std::lock_guard<std::mutex> lock(g_engineInitMutex);
+        
+        if (g_engineInitialized.load(std::memory_order_relaxed)) {
+            // पॉइंटर निकालकर सेफली डिस्ट्रक्टर कॉल करें ताकि मेमोरी लीक न हो
+            PureMetalEngine* engine = g_finalEngine.load(std::memory_order_relaxed);
+            if (engine) {
+                engine->~PureMetalEngine(); // एक्सप्लिसिट डिस्ट्रक्टर कॉल (Explicit Destructor Call)
+            }
+            
+            // पॉइंटर और फ्लैग को रीसेट करें
+            g_finalEngine.store(nullptr, std::memory_order_relaxed);
+            g_engineInitialized.store(false, std::memory_order_release);
+        }
+    }
 }
+
 extern "C" JNIEXPORT void JNICALL
 Java_com_my_newproject_truesingularityclass_nativeUpdateViewMatrix(
         JNIEnv *env, jobject thiz, jfloatArray matrixArray) {
-    if (!g_finalEngine || !g_finalEngine->initialized) return;
+    
+    if (!matrixArray) return;
+
+    PureMetalEngine* engine = g_finalEngine.load(std::memory_order_acquire);
+    if (!engine || !g_engineInitialized.load(std::memory_order_acquire)) {
+        return;
+    }
+
     jfloat* elems = env->GetFloatArrayElements(matrixArray, nullptr);
     if (elems) {
         for (int i = 0; i < 16; ++i) {
-            g_finalEngine->viewMatrix[i] = elems[i];
+            engine->viewMatrix[i] = elems[i];
         }
+        
         env->ReleaseFloatArrayElements(matrixArray, elems, JNI_ABORT);
     }
 }
+
 
 extern "C" JNIEXPORT jstring JNICALL
 Java_com_my_newproject_truesingularityclass_nativeGetZoomShader(
