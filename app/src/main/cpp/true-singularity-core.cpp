@@ -984,9 +984,12 @@ Java_com_my_newproject_truesingularityclass_nativeUpdateViewMatrix(
 extern "C" JNIEXPORT jstring JNICALL
 Java_com_my_newproject_truesingularityclass_nativeGetZoomShader(
         JNIEnv *env, jobject thiz, jfloat zoomFactor) {
+    if (!env) return nullptr;
+
     std::string shaderInfo = "Active Zoom Shader (Factor: " + std::to_string(zoomFactor) + ")";
     return env->NewStringUTF(shaderInfo.c_str());
 }
+
 
 extern "C" JNIEXPORT void JNICALL
 Java_com_my_newproject_truesingularityclass_nativeExecuteMultiFrameRawStacking(
