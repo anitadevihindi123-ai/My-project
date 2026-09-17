@@ -279,8 +279,8 @@ std::thread thermalThread;
                 }
                 allocInfo.memoryTypeIndex = memoryTypeIndex;
 
-                VK_CHECK(vkAllocateMemory(device, &allocInfo, nullptr, &cachedImage.vkDeviceMemory));
-                VK_CHECK(vkBindImageMemory(device, cachedImage.vkImage, cachedImage.vkDeviceMemory, 0));
+                VK_CHECK(vkAllocateMemory(device, &allocInfo, nullptr, &cachedImage.vkMemory));
+                VK_CHECK(vkBindImageMemory(device, cachedImage.vkImage, cachedImage.vkMemory, 0));
             }
         }
 
