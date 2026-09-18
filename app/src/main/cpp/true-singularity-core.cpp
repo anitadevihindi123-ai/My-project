@@ -40,6 +40,8 @@
 #include <poll.h>
 #define LOG_TAG "NativeLoader"
 #define LOGE(...) __android_log_print(ANDROID_LOG_ERROR, LOG_TAG, __VA_ARGS__)
+inline std::atomic<bool> g_engineInitialized{false};
+inline std::mutex g_engineInitMutex;
 #define VK_CHECK(call) \
     do { \
         VkResult result_ = call; \
@@ -114,9 +116,6 @@ extern "C" {
 }
 
 #define MAX_FRAMES_IN_FLIGHT 2
-inline std::atomic<bool> g_engineInitialized{false};
-inline std::mutex g_engineInitMutex;
-
 struct MasterEngineStorage {
     alignas(PureMetalEngine) char buffer[sizeof(PureMetalEngine)];
 };
