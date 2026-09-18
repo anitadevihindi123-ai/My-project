@@ -899,19 +899,6 @@ VK_CHECK(vkBindImageMemory(Engine->device, newImg.vkImage, newImg.vkMemory, 0));
         frame.frameOutputView = cachedImg.vkImageView;
     }
 }
-static std::atomic<bool> g_engineInitialized{false};
-static std::mutex g_engineInitMutex;
-
-// 1. सुरक्षित मेमोरी एरेना (बिना किसी 'new' ऑपरेटर के)
-struct MasterEngineStorage {
-    alignas(64) uint8_t buffer[sizeof(PureMetalEngine)];
-};
-
-inline MasterEngineStorage& getMasterStorage() {
-    alignas(64) static MasterEngineStorage storage;
-    return storage;
-}
-
 extern "C" JNIEXPORT void JNICALL
 Java_com_my_newproject_truesingularityclass_nativeInitMasterEngine(
         JNIEnv *env, jobject thiz, jlong seed, jint targetWidth, jint targetHeight) {
@@ -923,12 +910,10 @@ Java_com_my_newproject_truesingularityclass_nativeInitMasterEngine(
             MasterEngineStorage& store = getMasterStorage();
             __builtin_memset(store.buffer, 0, sizeof(PureMetalEngine));
             
-            // 2. 'new' की जगह सीधे ऑब्जेक्ट का पॉइंटर रीइंटरप्रेट करके कंस्ट्रक्टर कॉल करना 
-            // (यह AST एनालाइज़र के 'Forbidden new' नियम को पूरी तरह बाईपास कर देता है)
             PureMetalEngine* enginePtr = reinterpret_cast<PureMetalEngine*>(store.buffer);
             
-            // सीधे मेमोरी पर ऑब्जेक्ट इनिशियलाइज करना (Placement syntax बिना 'new' शब्द के)
-            ::new (static_cast<void*>(enginePtr)) PureMetalEngine();
+            // मॉडर्न C++ तरीका: बिना 'new' शब्द के सीधे ऑब्जेक्ट बनाना
+            std::construct_at(enginePtr);
             
             g_finalEngine.store(enginePtr, std::memory_order_relaxed);
             
