@@ -924,8 +924,8 @@ Java_com_my_newproject_truesingularityclass_nativeInitMasterEngine(
             
             PureMetalEngine* enginePtr = reinterpret_cast<PureMetalEngine*>(store.buffer);
             
-            // मॉडर्न C++ तरीका: बिना 'new' शब्द के सीधे ऑब्जेक्ट बनाना
-            std::construct_at(enginePtr);
+            // [फिक्स]: std::construct_at की जगह placement new का उपयोग (C++17 safe)
+            ::new (static_cast<void*>(enginePtr)) PureMetalEngine();
             
             g_finalEngine.store(enginePtr, std::memory_order_relaxed);
             
@@ -938,6 +938,7 @@ Java_com_my_newproject_truesingularityclass_nativeInitMasterEngine(
         }
     }
 }
+
 
 extern "C" JNIEXPORT void JNICALL
 Java_com_my_newproject_truesingularityclass_nativeInitAssetManager(
