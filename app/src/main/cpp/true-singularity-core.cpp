@@ -18,6 +18,7 @@
 #include <unordered_map>
 #include <mutex>
 #include <shared_mutex>
+#include <new>
 #include <cstdio>
 #include <dlfcn.h>
 #include <android/log.h>
@@ -113,6 +114,17 @@ extern "C" {
 }
 
 #define MAX_FRAMES_IN_FLIGHT 2
+inline std::atomic<bool> g_engineInitialized{false};
+inline std::mutex g_engineInitMutex;
+
+struct MasterEngineStorage {
+    alignas(PureMetalEngine) char buffer[sizeof(PureMetalEngine)];
+};
+
+inline MasterEngineStorage& getMasterStorage() {
+    static MasterEngineStorage store;
+    return store;
+}
 
 struct FinalCachedImage {
     VkImage vkImage = VK_NULL_HANDLE;
