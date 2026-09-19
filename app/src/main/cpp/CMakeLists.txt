@@ -16,7 +16,7 @@ find_library(jnigraphics-lib jnigraphics)
 find_library(vulkan-lib vulkan)
 
 # बिना किसी एआई के सीधे हार्डवेयर पर मैक्सिमम स्पीड (-O3 ऑप्टिमाइजेशन)
-target_compile_options(true-singularity-core PRIVATE -O3 -std=c++17)
+target_compile_options(true-singularity-core PRIVATE -O3 -std=c++20)
 
 # सभी जरूरी नेटिव और Vulkan लाइब्रेरीज़ को आपस में जोड़ना
 target_link_libraries(
