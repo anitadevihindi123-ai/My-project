@@ -116,14 +116,6 @@ extern "C" {
 }
 
 #define MAX_FRAMES_IN_FLIGHT 2
-struct MasterEngineStorage {
-    alignas(PureMetalEngine) char buffer[sizeof(PureMetalEngine)];
-};
-
-inline MasterEngineStorage& getMasterStorage() {
-    static MasterEngineStorage store;
-    return store;
-}
 
 struct FinalCachedImage {
     VkImage vkImage = VK_NULL_HANDLE;
@@ -157,6 +149,15 @@ struct FinalConstants {
 
 class PureMetalEngine {
 public:
+    struct MasterEngineStorage {
+    alignas(PureMetalEngine) char buffer[sizeof(PureMetalEngine)];
+};
+
+inline MasterEngineStorage& getMasterStorage() {
+    static MasterEngineStorage store;
+    return store;
+}
+
         jlong entropySeed = 0;
     int viewportWidth = 0;
     int viewportHeight = 0;
