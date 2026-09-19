@@ -924,7 +924,8 @@ Java_com_my_newproject_truesingularityclass_nativeInitMasterEngine(
             
             PureMetalEngine* enginePtr = reinterpret_cast<PureMetalEngine*>(store.buffer);
             
-            std::construct_at(enginePtr);
+            std::allocator<PureMetalEngine>().construct(enginePtr);
+ 
             g_finalEngine.store(enginePtr, std::memory_order_relaxed);
             
             if (enginePtr) {
