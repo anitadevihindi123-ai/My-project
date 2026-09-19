@@ -149,15 +149,7 @@ struct FinalConstants {
 
 class PureMetalEngine {
 public:
-    struct MasterEngineStorage {
-    alignas(PureMetalEngine) char buffer[sizeof(PureMetalEngine)];
-};
-
-inline MasterEngineStorage& getMasterStorage() {
-    static MasterEngineStorage store;
-    return store;
-}
-
+    
         jlong entropySeed = 0;
     int viewportWidth = 0;
     int viewportHeight = 0;
@@ -645,6 +637,14 @@ void destroyWindow() {
       }
    }
 };
+struct MasterEngineStorage {
+    alignas(PureMetalEngine) char buffer[sizeof(PureMetalEngine)];
+};
+
+inline MasterEngineStorage& getMasterStorage() {
+    static MasterEngineStorage store;
+    return store;
+}
 static std::atomic<PureMetalEngine*> g_finalEngine{nullptr};
 extern "C" JNIEXPORT void JNICALL
 Java_com_my_newproject_truesingularityclass_nativeExecuteZeroCopyPipeline(
