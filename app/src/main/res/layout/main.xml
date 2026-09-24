@@ -137,19 +137,20 @@
             app:layout_constraintStart_toStartOf="parent" />
 
         <!-- सुपर शटर बटन (100% सेफ ओवल शेप बैकग्राउंड के साथ) -->
-        <ImageView
-            android:id="@+id/circleimageview1"
-            android:layout_width="72dp"
-            android:layout_height="72dp"
-            android:src="@drawable/iiii"
-            android:background="@drawable/shutter_circle_bg"
-            android:padding="4dp"
-            android:scaleType="centerInside"
-            app:layout_constraintTop_toTopOf="parent"
-            app:layout_constraintBottom_toBottomOf="parent"
-            app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintEnd_toEndOf="parent" />
-
+        <de.hdodenhof.circleimageview.CircleImageView
+    android:id="@+id/circleimageview1"
+    android:layout_width="72dp"
+    android:layout_height="72dp"
+    android:src="@drawable/iiii"
+    android:scaleType="centerInside"
+    app:civ_border_width="2dp"
+    app:civ_border_color="#008DCD"
+    app:civ_circle_background_color="#FFFFFF"
+    app:civ_border_overlay="true"
+    app:layout_constraintTop_toTopOf="parent"
+    app:layout_constraintBottom_toBottomOf="parent"
+    app:layout_constraintStart_toStartOf="parent"
+    app:layout_constraintEnd_toEndOf="parent" />
         <!-- कैमरा स्विच आइकॉन -->
         <ImageView
             android:id="@+id/imageview2"
