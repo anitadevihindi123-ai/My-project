@@ -1,0 +1,178 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.constraintlayout.widget.ConstraintLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#000000">
+
+    <!-- 1. C++ Vulkan हाई-परफॉर्मेंस व्यूफेंडर SurfaceView -->
+    <SurfaceView
+        android:id="@+id/videoview3"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent" />
+
+    <!-- 2. टॉप टाइमर / स्टेटस -->
+    <TextView
+        android:id="@+id/textview3"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="32dp"
+        android:text="00:00"
+        android:textSize="14sp"
+        android:textStyle="bold"
+        android:textColor="#FFFFFF"
+        android:background="@drawable/border_box"
+        android:paddingHorizontal="16dp"
+        android:paddingVertical="6dp"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent" />
+
+    <!-- 3. ज़ूम और वैल्यू कंट्रोल बार -->
+    <HorizontalScrollView
+        android:id="@+id/linear4"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="16dp"
+        android:layout_marginHorizontal="16dp"
+        android:scrollbars="none"
+        android:fillViewport="true"
+        app:layout_constraintBottom_toTopOf="@id/linear3"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent">
+
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:background="@drawable/border_box"
+            android:padding="4dp"
+            android:gravity="center"
+            android:orientation="horizontal">
+            <TextView android:id="@+id/textview4" android:layout_width="40dp" android:layout_height="40dp" android:gravity="center" android:text="1" android:textSize="12sp" android:textColor="#FFFFFF" />
+            <TextView android:id="@+id/textview5" android:layout_width="40dp" android:layout_height="40dp" android:gravity="center" android:text="1" android:textSize="12sp" android:textColor="#FFFFFF" />
+            <TextView android:id="@+id/textview6" android:layout_width="40dp" android:layout_height="40dp" android:gravity="center" android:text="1" android:textSize="12sp" android:textColor="#FFFFFF" />
+            <TextView android:id="@+id/textview7" android:layout_width="40dp" android:layout_height="40dp" android:gravity="center" android:text="1" android:textSize="12sp" android:textColor="#FFFFFF" />
+            <TextView android:id="@+id/textview8" android:layout_width="40dp" android:layout_height="40dp" android:gravity="center" android:text="1" android:textSize="12sp" android:textColor="#FFFFFF" />
+            <TextView android:id="@+id/textview9" android:layout_width="40dp" android:layout_height="40dp" android:gravity="center" android:text="-" android:textSize="16sp" android:textStyle="bold" android:textColor="#2196F3" />
+            <TextView android:id="@+id/textview10" android:layout_width="44dp" android:layout_height="44dp" android:gravity="center" android:text="0" android:textSize="14sp" android:textStyle="bold" android:textColor="#E91E63" />
+            <TextView android:id="@+id/textview11" android:layout_width="40dp" android:layout_height="40dp" android:gravity="center" android:text="+" android:textSize="16sp" android:textStyle="bold" android:textColor="#F44336" />
+            <TextView android:id="@+id/textview12" android:layout_width="40dp" android:layout_height="40dp" android:gravity="center" android:text="1" android:textSize="12sp" android:textColor="#FFFFFF" />
+            <TextView android:id="@+id/textview13" android:layout_width="40dp" android:layout_height="40dp" android:gravity="center" android:text="1" android:textSize="12sp" android:textColor="#FFFFFF" />
+            <TextView android:id="@+id/textview14" android:layout_width="40dp" android:layout_height="40dp" android:gravity="center" android:text="1" android:textSize="12sp" android:textColor="#FFFFFF" />
+            <TextView android:id="@+id/textview15" android:layout_width="40dp" android:layout_height="40dp" android:gravity="center" android:text="1" android:textSize="12sp" android:textColor="#FFFFFF" />
+            <TextView android:id="@+id/textview16" android:layout_width="40dp" android:layout_height="40dp" android:gravity="center" android:text="1" android:textSize="12sp" android:textColor="#FFFFFF" />
+        </LinearLayout>
+    </HorizontalScrollView>
+
+    <!-- 4. मोड सेलेक्टर (Photo / Video / Flash) -->
+    <LinearLayout
+        android:id="@+id/linear3"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="16dp"
+        android:gravity="center"
+        android:orientation="horizontal"
+        app:layout_constraintBottom_toTopOf="@id/linear2"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent">
+
+        <TextView
+            android:id="@+id/textview1"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:paddingHorizontal="16dp"
+            android:paddingVertical="8dp"
+            android:text="Photo"
+            android:textSize="14sp"
+            android:textStyle="bold"
+            android:textColor="#FFFFFF" />
+
+        <TextView
+            android:id="@+id/textview2"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:paddingHorizontal="16dp"
+            android:paddingVertical="8dp"
+            android:text="Video"
+            android:textSize="14sp"
+            android:textStyle="bold"
+            android:textColor="#888888" />
+
+        <ImageView
+            android:id="@+id/imageview3"
+            android:layout_width="32dp"
+            android:layout_height="32dp"
+            android:layout_marginStart="16dp"
+            android:padding="4dp"
+            android:src="@drawable/icon_electric_bolt_round"
+            app:tint="#FFFFFF" />
+    </LinearLayout>
+
+    <!-- 5. बॉटम एक्शन बार (गैलरी, शटर बटन, कैमरा स्विच) -->
+    <androidx.constraintlayout.widget.ConstraintLayout
+        android:id="@+id/linear2"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="24dp"
+        android:paddingHorizontal="32dp"
+        app:layout_constraintBottom_toTopOf="@id/adview1"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent">
+
+        <!-- गैलरी / बैक कैमरा आइकॉन -->
+        <ImageView
+            android:id="@+id/imageview1"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:src="@drawable/icon_photo_camera_back_round"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:padding="6dp"
+            app:layout_constraintTop_toTopOf="parent"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintStart_toStartOf="parent" />
+
+        <!-- सुपर शटर बटन (100% सेफ ओवल शेप बैकग्राउंड के साथ) -->
+        <ImageView
+            android:id="@+id/circleimageview1"
+            android:layout_width="72dp"
+            android:layout_height="72dp"
+            android:src="@drawable/iiii"
+            android:background="@drawable/shutter_circle_bg"
+            android:padding="4dp"
+            android:scaleType="centerInside"
+            app:layout_constraintTop_toTopOf="parent"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintEnd_toEndOf="parent" />
+
+        <!-- कैमरा स्विच आइकॉन -->
+        <ImageView
+            android:id="@+id/imageview2"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:src="@drawable/icon_cameraswitch_round"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:padding="6dp"
+            app:layout_constraintTop_toTopOf="parent"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintEnd_toEndOf="parent" />
+
+    </androidx.constraintlayout.widget.ConstraintLayout>
+
+    <!-- 6. स्टैंडर्ड AdMob बैनर -->
+    <com.google.android.gms.ads.AdView
+        android:id="@+id/adview1"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        app:adSize="BANNER"
+        app:adUnitId="ca-app-pub-3940256099942544/6300978111"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent" />
+
+</androidx.constraintlayout.widget.ConstraintLayout>
