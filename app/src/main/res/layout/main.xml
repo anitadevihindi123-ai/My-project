@@ -127,8 +127,8 @@
         <!-- गैलरी / बैक कैमरा आइकॉन -->
         <ImageView
             android:id="@+id/imageview1"
-            android:layout_width="48dp"
-            android:layout_height="48dp"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
             android:src="@drawable/icon_photo_camera_back_round"
             android:background="?attr/selectableItemBackgroundBorderless"
             android:padding="6dp"
@@ -154,8 +154,8 @@
         <!-- कैमरा स्विच आइकॉन -->
         <ImageView
             android:id="@+id/imageview2"
-            android:layout_width="48dp"
-            android:layout_height="48dp"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
             android:src="@drawable/icon_cameraswitch_round"
             android:background="?attr/selectableItemBackgroundBorderless"
             android:padding="6dp"
