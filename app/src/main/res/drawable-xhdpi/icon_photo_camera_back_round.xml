@@ -1,13 +1,13 @@
-<?xml version='1.0' encoding='UTF-8' standalone='yes' ?>
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="48dp"
     android:height="48dp"
     android:viewportWidth="24.0"
     android:viewportHeight="24.0">
 
+    <!-- गैलरी का ऑरिजिनल पाथ, सही ग्रुप स्केल और पिवट के साथ ताकि यह रिंग के अंदर बिल्कुल नेचुरल और बैलेंस्ड दिखे -->
     <group
-        android:scaleX="0.75"
-        android:scaleY="0.75"
+        android:scaleX="0.65"
+        android:scaleY="0.65"
         android:pivotX="12.0"
         android:pivotY="12.0">
         <path
@@ -15,6 +15,7 @@
             android:pathData="M20 5h-3.17l-1.24-1.35A1.99 1.99 0 0 0 14.12 3H9.88c-.56 0-1.1.24-1.47.65L7.17 5H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm-3 12H7a.5.5 0 0 1-.4-.8l2-2.67c.2-.27.6-.27.8 0L11.25 16l2.6-3.47c.2-.27.6-.27.8 0l2.75 3.67a.5.5 0 0 1-.4.8z" />
     </group>
 
+    <!-- कैमरे वाले आइकॉन जैसी ही प्रॉपर गोल सेल्फी रिंग / आउटलाइन -->
     <path
         android:fillType="evenOdd"
         android:fillColor="#FFFFFF"
