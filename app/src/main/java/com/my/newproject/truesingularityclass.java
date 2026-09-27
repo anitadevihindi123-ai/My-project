@@ -310,7 +310,7 @@ private android.hardware.SensorEventListener gyroListener;
                 public void onClick(View v) {
                     isTorchActive = !isTorchActive;
                     setHardwareTorch(isTorchActive);
-                    btnFlash.setColorFilter(Color.parseColor(isTorchActive ? "#00E5FF" : "#FFFFFF"));
+                    btnFlash.setColorFilter(Color.parseColor(isTorchActive ? "#00FFFF" : "#FFFFFF"));
                 }
             });
         }
