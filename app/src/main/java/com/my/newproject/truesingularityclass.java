@@ -187,6 +187,23 @@ private android.hardware.SensorEventListener gyroListener;
             });
         }
     
+           if (previewSurfaceView != null) {
+            previewSurfaceView.setOnTouchListener(new View.OnTouchListener() {
+                @Override
+                public boolean onTouch(View v, MotionEvent event) {
+                    if (event.getAction() == MotionEvent.ACTION_DOWN) {
+                        if (zoomTrackLayout != null) {
+                            if (zoomTrackLayout.getVisibility() == View.VISIBLE) {
+                                zoomTrackLayout.setVisibility(View.GONE);
+                            } else {
+                                zoomTrackLayout.setVisibility(View.VISIBLE);
+                            }
+                        }
+                    }
+                    return true;
+                }
+            });
+        }
 
 
              if (zoomTrackLayout != null) {
