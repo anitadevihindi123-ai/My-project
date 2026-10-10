@@ -1,0 +1,2239 @@
+1#version 450
+
+#extension GL_KHR_shader_subgroup_basic : enable
+#extension GL_KHR_shader_subgroup_arithmetic : enable
+
+layout(local_size_x = 16, local_size_y = 16) in;
+
+layout(binding = 0, rgba8) readonly uniform image2D inputImage;
+layout(binding = 1, rgba8) writeonly uniform image2D outputImage;
+layout(binding = 2, rgba8) readonly uniform image2DArray historyRingBuffer;
+
+layout(push_constant, std430) uniform FinalConstants
+{
+    float zoomFactor;
+    float thermalLoad;
+    float gyroShiftX;
+    float gyroShiftY;
+    int width;
+    int height;
+    float _pad0;
+    float _pad1;
+    int historyReadBase;
+    int historyValidMask;
+    mat4 viewMatrix;
+} pc;
+
+shared vec3 sharedTile[18][18];
+
+shared float subgroupLumaSums[64];
+shared float subgroupChromaSums[64];
+shared float subgroupActiveCounts[64];
+
+shared float subgroupNoiseSums[64];
+shared float subgroupNoiseCounts[64];
+
+shared float workgroupMeanLuma;
+shared float workgroupMeanChroma;
+shared float workgroupMeanNoise;
+shared float workgroupActiveCount;
+
+const float EPSILON = 1.0e-6;
+
+const vec3 LUMA_WEIGHTS =
+    vec3(0.2126, 0.7152, 0.0722);
+
+const float HISTORY_WEIGHT_0 = 0.40;
+const float HISTORY_WEIGHT_1 = 0.25;
+const float HISTORY_WEIGHT_2 = 0.15;
+const float HISTORY_WEIGHT_3 = 0.12;
+const float HISTORY_WEIGHT_4 = 0.08;
+
+const float JZ_B = 1.15;
+const float JZ_G = 0.66;
+const float JZ_D = -0.56;
+const float JZ_D0 = 1.6295499532821566e-11;
+
+const float PQ_N = 2610.0 / 16384.0;
+const float PQ_P = 1.7 * 2523.0 / 32.0;
+const float PQ_C1 = 3424.0 / 4096.0;
+const float PQ_C2 = 2413.0 / 128.0;
+const float PQ_C3 = 2392.0 / 128.0;
+
+float safeFinite(float v, float fallbackValue)
+{
+    if (isnan(v) || isinf(v))
+        return fallbackValue;
+
+    return v;
+}
+
+vec2 safeFiniteVec2(vec2 v, vec2 fallbackValue)
+{
+    return vec2(
+        safeFinite(v.x, fallbackValue.x),
+        safeFinite(v.y, fallbackValue.y)
+    );
+}
+
+vec3 safeFiniteVec3(vec3 v, vec3 fallbackValue)
+{
+    return vec3(
+        safeFinite(v.x, fallbackValue.x),
+        safeFinite(v.y, fallbackValue.y),
+        safeFinite(v.z, fallbackValue.z)
+    );
+}
+
+vec4 safeFiniteVec4(vec4 v, vec4 fallbackValue)
+{
+    return vec4(
+        safeFinite(v.x, fallbackValue.x),
+        safeFinite(v.y, fallbackValue.y),
+        safeFinite(v.z, fallbackValue.z),
+        safeFinite(v.w, fallbackValue.w)
+    );
+}
+
+float safeReciprocal(float v)
+{
+    float signValue = v < 0.0 ? -1.0 : 1.0;
+    return signValue / max(abs(v), EPSILON);
+}
+
+vec3 safeNormalizeColor(vec3 c)
+{
+    c = safeFiniteVec3(c, vec3(0.0));
+    return clamp(c, vec3(0.0), vec3(1.0));
+}
+
+int positiveModulo(int value, int modulus)
+{
+    if (modulus <= 0)
+        return 0;
+
+    int result = value % modulus;
+
+    if (result < 0)
+        result += modulus;
+
+    return result;
+}
+
+ivec2 maxCoord(ivec2 sizeValue)
+{
+    return max(sizeValue - ivec2(1), ivec2(0));
+}
+
+ivec2 getProcessingSize()
+{
+    ivec2 inputSize = imageSize(inputImage);
+    ivec2 outputSize = imageSize(outputImage);
+
+    ivec2 constantSize =
+        max(
+            ivec2(pc.width, pc.height),
+            ivec2(1)
+        );
+
+    return max(
+        ivec2(1),
+        min(
+            constantSize,
+            min(inputSize, outputSize)
+        )
+    );
+}
+
+bool isActivePixel(
+    ivec2 pixelCoord,
+    ivec2 processingSize
+)
+{
+    return
+        pixelCoord.x >= 0 &&
+        pixelCoord.y >= 0 &&
+        pixelCoord.x < processingSize.x &&
+        pixelCoord.y < processingSize.y;
+}
+
+vec3 loadInputPoint(
+    ivec2 coord,
+    ivec2 sizeValue
+)
+{
+    ivec2 safeCoord =
+        clamp(
+            coord,
+            ivec2(0),
+            maxCoord(sizeValue)
+        );
+
+    return safeFiniteVec3(
+        imageLoad(inputImage, safeCoord).rgb,
+        vec3(0.0)
+    );
+}
+
+vec3 sampleInputBilinear(
+    vec2 pixelPosition,
+    ivec2 sizeValue
+)
+{
+    vec2 safePosition =
+        safeFiniteVec2(
+            pixelPosition,
+            vec2(0.0)
+        );
+
+    safePosition =
+        clamp(
+            safePosition,
+            vec2(0.0),
+            vec2(maxCoord(sizeValue))
+        );
+
+    ivec2 p0 =
+        ivec2(floor(safePosition));
+
+    ivec2 p1 =
+        min(
+            p0 + ivec2(1),
+            maxCoord(sizeValue)
+        );
+
+    vec2 f =
+        clamp(
+            fract(safePosition),
+            vec2(0.0),
+            vec2(1.0)
+        );
+
+    vec3 c00 =
+        loadInputPoint(p0, sizeValue);
+
+    vec3 c10 =
+        loadInputPoint(
+            ivec2(p1.x, p0.y),
+            sizeValue
+        );
+
+    vec3 c01 =
+        loadInputPoint(
+            ivec2(p0.x, p1.y),
+            sizeValue
+        );
+
+    vec3 c11 =
+        loadInputPoint(p1, sizeValue);
+
+    return safeFiniteVec3(
+        mix(
+            mix(c00, c10, f.x),
+            mix(c01, c11, f.x),
+            f.y
+        ),
+        vec3(0.0)
+    );
+}
+
+vec3 sampleInputAtShift(
+    ivec2 pixel,
+    vec2 gyroShift,
+    ivec2 sizeValue
+)
+{
+    return sampleInputBilinear(
+        vec2(pixel) + gyroShift,
+        sizeValue
+    );
+}
+
+vec3 pqForward(vec3 v)
+{
+    v =
+        max(
+            safeFiniteVec3(v, vec3(0.0)),
+            vec3(0.0)
+        );
+
+    vec3 vn =
+        pow(
+            v,
+            vec3(PQ_N)
+        );
+
+    vec3 numerator =
+        PQ_C1 +
+        PQ_C2 * vn;
+
+    vec3 denominator =
+        1.0 +
+        PQ_C3 * vn;
+
+    vec3 ratio =
+        numerator /
+        max(
+            denominator,
+            vec3(EPSILON)
+        );
+
+    return pow(
+        max(ratio, vec3(0.0)),
+        vec3(PQ_P)
+    );
+}
+
+vec3 pqInverse(vec3 v)
+{
+    v =
+        max(
+            safeFiniteVec3(v, vec3(0.0)),
+            vec3(0.0)
+        );
+
+    vec3 vp =
+        pow(
+            v,
+            vec3(1.0 / PQ_P)
+        );
+
+    vec3 numerator =
+        max(
+            vp - PQ_C1,
+            vec3(0.0)
+        );
+
+    vec3 denominator =
+        PQ_C2 -
+        PQ_C3 * vp;
+
+    vec3 ratio =
+        numerator /
+        max(
+            denominator,
+            vec3(EPSILON)
+        );
+
+    return pow(
+        max(ratio, vec3(0.0)),
+        vec3(1.0 / PQ_N)
+    );
+}
+
+vec3 rgbToJzAzBz(vec3 c)
+{
+    c =
+        max(
+            safeFiniteVec3(c, vec3(0.0)),
+            vec3(0.0)
+        );
+
+    vec3 xyz;
+
+    xyz.x =
+        0.4124564 * c.r +
+        0.3575761 * c.g +
+        0.1804375 * c.b;
+
+    xyz.y =
+        0.2126729 * c.r +
+        0.7151522 * c.g +
+        0.0721750 * c.b;
+
+    xyz.z =
+        0.0193339 * c.r +
+        0.1191920 * c.g +
+        0.9503041 * c.b;
+
+    float Xp =
+        JZ_B * xyz.x -
+        (JZ_B - 1.0) * xyz.z;
+
+    float Yp =
+        JZ_G * xyz.y -
+        (JZ_G - 1.0) * xyz.x;
+
+    float Zp = xyz.z;
+
+    vec3 xyzPrime =
+        max(
+            safeFiniteVec3(
+                vec3(Xp, Yp, Zp),
+                vec3(0.0)
+            ),
+            vec3(0.0)
+        );
+
+    vec3 lms;
+
+    lms.x =
+        0.41478972 * xyzPrime.x +
+        0.57999900 * xyzPrime.y +
+        0.01464800 * xyzPrime.z;
+
+    lms.y =
+        -0.20151000 * xyzPrime.x +
+        1.12064900 * xyzPrime.y +
+        0.05310080 * xyzPrime.z;
+
+    lms.z =
+        -0.01660080 * xyzPrime.x +
+        0.26480000 * xyzPrime.y +
+        0.66847990 * xyzPrime.z;
+
+    lms =
+        max(
+            safeFiniteVec3(lms, vec3(0.0)),
+            vec3(0.0)
+        );
+
+    vec3 lmsPrime =
+        pqForward(lms);
+
+    float Iz =
+        0.5 *
+        (lmsPrime.x + lmsPrime.y);
+
+    float Az =
+        3.52400000 * lmsPrime.x -
+        4.06670800 * lmsPrime.y +
+        0.54270800 * lmsPrime.z;
+
+    float Bz =
+        0.19907600 * lmsPrime.x +
+        1.09679900 * lmsPrime.y -
+        1.29587500 * lmsPrime.z;
+
+    float Jz =
+        (
+            (1.0 + JZ_D) * Iz
+        )
+        /
+        max(
+            1.0 + JZ_D * Iz,
+            EPSILON
+        )
+        -
+        JZ_D0;
+
+    return safeFiniteVec3(
+        vec3(Jz, Az, Bz),
+        vec3(0.0)
+    );
+}
+
+vec3 jzAzBzToRgb(vec3 c)
+{
+    c =
+        safeFiniteVec3(
+            c,
+            vec3(0.0)
+        );
+
+    float JzShifted =
+        c.x + JZ_D0;
+
+    float Iz =
+        JzShifted /
+        max(
+            (1.0 + JZ_D) -
+            JZ_D * JzShifted,
+            EPSILON
+        );
+
+    float Lp =
+        Iz +
+        0.1386050432715393 * c.y +
+        0.05804731615611886 * c.z;
+
+    float Mp =
+        Iz -
+        0.1386050432715393 * c.y -
+        0.05804731615611886 * c.z;
+
+    float Sp =
+        Iz -
+        0.09601924202631895 * c.y -
+        0.8118918960560390 * c.z;
+
+    vec3 lmsPrime =
+        max(
+            safeFiniteVec3(
+                vec3(Lp, Mp, Sp),
+                vec3(0.0)
+            ),
+            vec3(0.0)
+        );
+
+    vec3 lms =
+        pqInverse(lmsPrime);
+
+    vec3 xyzPrime;
+
+    xyzPrime.x =
+        1.9242264357876067 * lms.x -
+        1.0047923125953657 * lms.y +
+        0.0376514040306180 * lms.z;
+
+    xyzPrime.y =
+        -0.6793865897686179 * lms.x +
+        1.6096178500567867 * lms.y +
+        0.0057199950892083 * lms.z;
+
+    xyzPrime.z =
+        -0.0298512900096021 * lms.x -
+        0.0248650766885142 * lms.y +
+        1.0738837934780017 * lms.z;
+
+    float X =
+        (
+            xyzPrime.x +
+            (JZ_B - 1.0) * xyzPrime.z
+        )
+        /
+        max(
+            JZ_B,
+            EPSILON
+        );
+
+    float Y =
+        (
+            xyzPrime.y +
+            (JZ_G - 1.0) * X
+        )
+        /
+        max(
+            JZ_G,
+            EPSILON
+        );
+
+    float Z =
+        xyzPrime.z;
+
+    vec3 xyz =
+        max(
+            safeFiniteVec3(
+                vec3(X, Y, Z),
+                vec3(0.0)
+            ),
+            vec3(0.0)
+        );
+
+    float r =
+        3.2409699419045226 * xyz.x -
+        1.5373831775700939 * xyz.y -
+        0.4986107602930034 * xyz.z;
+
+    float g =
+        -0.9692436362808798 * xyz.x +
+        1.8759675015077202 * xyz.y +
+        0.0415550574071756 * xyz.z;
+
+    float b =
+        0.0556300796969937 * xyz.x -
+        0.2039769588889765 * xyz.y +
+        1.0569715142428786 * xyz.z;
+
+    return clamp(
+        safeFiniteVec3(
+            vec3(r, g, b),
+            vec3(0.0)
+        ),
+        vec3(0.0),
+        vec3(1.0)
+    );
+}
+
+int historyPhysicalLayer(
+    int logicalHistoryIndex,
+    int layerCount
+)
+{
+    if (layerCount <= 0)
+        return 0;
+
+    return positiveModulo(
+        pc.historyReadBase +
+        logicalHistoryIndex,
+        layerCount
+    );
+}
+
+bool historyLogicalValid(
+    int logicalHistoryIndex,
+    int layerCount
+)
+{
+    if (
+        logicalHistoryIndex < 0 ||
+        logicalHistoryIndex > 4
+    )
+        return false;
+
+    if (
+        layerCount <= 0 ||
+        logicalHistoryIndex >= layerCount
+    )
+        return false;
+
+    uint mask =
+        uint(pc.historyValidMask);
+
+    uint bit =
+        (mask >> uint(logicalHistoryIndex)) &
+        1u;
+
+    return bit != 0u;
+}
+
+float historyLogicalWeight(
+    int logicalHistoryIndex,
+    int layerCount
+)
+{
+    if (
+        !historyLogicalValid(
+            logicalHistoryIndex,
+            layerCount
+        )
+    )
+        return 0.0;
+
+    if (logicalHistoryIndex == 0)
+        return HISTORY_WEIGHT_0;
+
+    if (logicalHistoryIndex == 1)
+        return HISTORY_WEIGHT_1;
+
+    if (logicalHistoryIndex == 2)
+        return HISTORY_WEIGHT_2;
+
+    if (logicalHistoryIndex == 3)
+        return HISTORY_WEIGHT_3;
+
+    return HISTORY_WEIGHT_4;
+}
+
+vec3 loadHistoryPoint(
+    ivec2 coord,
+    int logicalHistoryIndex,
+    ivec2 historySize,
+    int layerCount
+)
+{
+    if (
+        !historyLogicalValid(
+            logicalHistoryIndex,
+            layerCount
+        )
+    )
+        return vec3(0.0);
+
+    ivec2 safeCoord =
+        clamp(
+            coord,
+            ivec2(0),
+            maxCoord(historySize)
+        );
+
+    int physicalLayer =
+        historyPhysicalLayer(
+            logicalHistoryIndex,
+            layerCount
+        );
+
+    return safeFiniteVec3(
+        imageLoad(
+            historyRingBuffer,
+            ivec3(
+                safeCoord,
+                physicalLayer
+            )
+        ).rgb,
+        vec3(0.0)
+    );
+}
+
+vec3 sampleHistoryBilinear(
+    vec2 currentPosition,
+    vec2 motionPixels,
+    int logicalHistoryIndex,
+    ivec2 currentSize,
+    ivec2 historySize,
+    int layerCount
+)
+{
+    if (
+        !historyLogicalValid(
+            logicalHistoryIndex,
+            layerCount
+        )
+    )
+        return vec3(0.0);
+
+    vec2 safeCurrentPosition =
+        safeFiniteVec2(
+            currentPosition,
+            vec2(0.0)
+        );
+
+    vec2 safeMotion =
+        safeFiniteVec2(
+            motionPixels,
+            vec2(0.0)
+        );
+
+    vec2 currentExtent =
+        vec2(
+            max(
+                currentSize,
+                ivec2(1)
+            )
+        );
+
+    vec2 historyExtent =
+        vec2(
+            max(
+                historySize,
+                ivec2(1)
+            )
+        );
+
+    vec2 scale =
+        historyExtent /
+        currentExtent;
+
+    vec2 historyPosition =
+        (
+            safeCurrentPosition +
+            vec2(0.5)
+        )
+        *
+        scale
+        -
+        vec2(0.5)
+        +
+        safeMotion *
+        scale;
+
+    historyPosition =
+        clamp(
+            historyPosition,
+            vec2(0.0),
+            historyExtent -
+            vec2(1.0)
+        );
+
+    ivec2 p0 =
+        ivec2(
+            floor(historyPosition)
+        );
+
+    ivec2 p1 =
+        min(
+            p0 + ivec2(1),
+            maxCoord(historySize)
+        );
+
+    vec2 f =
+        clamp(
+            fract(historyPosition),
+            vec2(0.0),
+            vec2(1.0)
+        );
+
+    vec3 c00 =
+        loadHistoryPoint(
+            p0,
+            logicalHistoryIndex,
+            historySize,
+            layerCount
+        );
+
+    vec3 c10 =
+        loadHistoryPoint(
+            ivec2(p1.x, p0.y),
+            logicalHistoryIndex,
+            historySize,
+            layerCount
+        );
+
+    vec3 c01 =
+        loadHistoryPoint(
+            ivec2(p0.x, p1.y),
+            logicalHistoryIndex,
+            historySize,
+            layerCount
+        );
+
+    vec3 c11 =
+        loadHistoryPoint(
+            p1,
+            logicalHistoryIndex,
+            historySize,
+            layerCount
+        );
+
+    return safeFiniteVec3(
+        mix(
+            mix(c00, c10, f.x),
+            mix(c01, c11, f.x),
+            f.y
+        ),
+        vec3(0.0)
+    );
+}
+
+void buildWorkgroupLumaChroma(
+    float localLuma,
+    float localChroma,
+    float activeWeight
+)
+{
+    float subgroupLuma =
+        subgroupAdd(
+            localLuma *
+            activeWeight
+        );
+
+    float subgroupChroma =
+        subgroupAdd(
+            localChroma *
+            activeWeight
+        );
+
+    float subgroupCount =
+        subgroupAdd(
+            activeWeight
+        );
+
+    if (
+        gl_SubgroupInvocationID == 0
+    )
+    {
+        uint subgroupID =
+            gl_SubgroupID;
+
+        subgroupLumaSums[subgroupID] =
+            subgroupLuma;
+
+        subgroupChromaSums[subgroupID] =
+            subgroupChroma;
+
+        subgroupActiveCounts[subgroupID] =
+            subgroupCount;
+    }
+
+    barrier();
+
+    if (
+        gl_LocalInvocationIndex == 0
+    )
+    {
+        float totalLuma = 0.0;
+        float totalChroma = 0.0;
+        float totalCount = 0.0;
+
+        for (
+            uint i = 0;
+            i < gl_NumSubgroups;
+            ++i
+        )
+        {
+            totalLuma +=
+                subgroupLumaSums[i];
+
+            totalChroma +=
+                subgroupChromaSums[i];
+
+            totalCount +=
+                subgroupActiveCounts[i];
+        }
+
+        workgroupActiveCount =
+            totalCount;
+
+        if (
+            totalCount > EPSILON
+        )
+        {
+            workgroupMeanLuma =
+                totalLuma /
+                totalCount;
+
+            workgroupMeanChroma =
+                totalChroma /
+                totalCount;
+        }
+        else
+        {
+            workgroupMeanLuma = 0.0;
+            workgroupMeanChroma = 0.0;
+        }
+    }
+
+    barrier();
+}
+
+void buildWorkgroupNoise(
+    float localNoise,
+    float activeWeight
+)
+{
+    float subgroupNoise =
+        subgroupAdd(
+            localNoise *
+            activeWeight
+        );
+
+    float subgroupCount =
+        subgroupAdd(
+            activeWeight
+        );
+
+    if (
+        gl_SubgroupInvocationID == 0
+    )
+    {
+        uint subgroupID =
+            gl_SubgroupID;
+
+        subgroupNoiseSums[subgroupID] =
+            subgroupNoise;
+
+        subgroupNoiseCounts[subgroupID] =
+            subgroupCount;
+    }
+
+    barrier();
+
+    if (
+        gl_LocalInvocationIndex == 0
+    )
+    {
+        float totalNoise = 0.0;
+        float totalCount = 0.0;
+
+        for (
+            uint i = 0;
+            i < gl_NumSubgroups;
+            ++i
+        )
+        {
+            totalNoise +=
+                subgroupNoiseSums[i];
+
+            totalCount +=
+                subgroupNoiseCounts[i];
+        }
+
+        if (
+            totalCount > EPSILON
+        )
+        {
+            workgroupMeanNoise =
+                totalNoise /
+                totalCount;
+        }
+        else
+        {
+            workgroupMeanNoise = 0.0;
+        }
+    }
+
+    barrier();
+}
+
+void main()
+{
+    ivec2 pixelCoord =
+        ivec2(
+            gl_GlobalInvocationID.xy
+        );
+
+    ivec2 localCoord =
+        ivec2(
+            gl_LocalInvocationID.xy
+        );
+
+    ivec2 processingSize =
+        getProcessingSize();
+
+    bool activePixel =
+        isActivePixel(
+            pixelCoord,
+            processingSize
+        );
+
+    float activeWeight =
+        activePixel
+        ? 1.0
+        : 0.0;
+
+    float thermalLoad =
+        safeFinite(
+            pc.thermalLoad,
+            0.0
+        );
+
+    float thermalShieldFactor =
+        clamp(
+            1.0 -
+            max(
+                0.0,
+                thermalLoad - 0.5
+            )
+            *
+            1.25,
+            0.5,
+            1.0
+        );
+
+    vec2 gyroShift =
+        vec2(
+            safeFinite(
+                pc.gyroShiftX,
+                0.0
+            ),
+            safeFinite(
+                pc.gyroShiftY,
+                0.0
+            )
+        );
+
+    ivec2 safeCoord =
+        clamp(
+            pixelCoord,
+            ivec2(0),
+            maxCoord(processingSize)
+        );
+
+    sharedTile
+        [localCoord.y + 1]
+        [localCoord.x + 1] =
+        sampleInputAtShift(
+            safeCoord,
+            gyroShift,
+            processingSize
+        );
+
+    if (
+        localCoord.x == 0
+    )
+    {
+        sharedTile
+            [localCoord.y + 1][0] =
+            sampleInputAtShift(
+                safeCoord +
+                ivec2(-1, 0),
+                gyroShift,
+                processingSize
+            );
+    }
+
+    if (
+        localCoord.x == 15
+    )
+    {
+        sharedTile
+            [localCoord.y + 1][17] =
+            sampleInputAtShift(
+                safeCoord +
+                ivec2(1, 0),
+                gyroShift,
+                processingSize
+            );
+    }
+
+    if (
+        localCoord.y == 0
+    )
+    {
+        sharedTile
+            [0][localCoord.x + 1] =
+            sampleInputAtShift(
+                safeCoord +
+                ivec2(0, -1),
+                gyroShift,
+                processingSize
+            );
+    }
+
+    if (
+        localCoord.y == 15
+    )
+    {
+        sharedTile
+            [17][localCoord.x + 1] =
+            sampleInputAtShift(
+                safeCoord +
+                ivec2(0, 1),
+                gyroShift,
+                processingSize
+            );
+    }
+
+    if (
+        localCoord.x == 0 &&
+        localCoord.y == 0
+    )
+    {
+        sharedTile[0][0] =
+            sampleInputAtShift(
+                safeCoord +
+                ivec2(-1, -1),
+                gyroShift,
+                processingSize
+            );
+    }
+
+    if (
+        localCoord.x == 15 &&
+        localCoord.y == 0
+    )
+    {
+        sharedTile[0][17] =
+            sampleInputAtShift(
+                safeCoord +
+                ivec2(1, -1),
+                gyroShift,
+                processingSize
+            );
+    }
+
+    if (
+        localCoord.x == 0 &&
+        localCoord.y == 15
+    )
+    {
+        sharedTile[17][0] =
+            sampleInputAtShift(
+                safeCoord +
+                ivec2(-1, 1),
+                gyroShift,
+                processingSize
+            );
+    }
+
+    if (
+        localCoord.x == 15 &&
+        localCoord.y == 15
+    )
+    {
+        sharedTile[17][17] =
+            sampleInputAtShift(
+                safeCoord +
+                ivec2(1, 1),
+                gyroShift,
+                processingSize
+            );
+    }
+
+    barrier();
+
+    vec3 left =
+        sharedTile
+            [localCoord.y + 1]
+            [localCoord.x];
+
+    vec3 right =
+        sharedTile
+            [localCoord.y + 1]
+            [localCoord.x + 2];
+
+    vec3 top =
+        sharedTile
+            [localCoord.y]
+            [localCoord.x + 1];
+
+    vec3 bottom =
+        sharedTile
+            [localCoord.y + 2]
+            [localCoord.x + 1];
+
+    vec3 tl =
+        sharedTile
+            [localCoord.y]
+            [localCoord.x];
+
+    vec3 tr =
+        sharedTile
+            [localCoord.y]
+            [localCoord.x + 2];
+
+    vec3 bl =
+        sharedTile
+            [localCoord.y + 2]
+            [localCoord.x];
+
+    vec3 br =
+        sharedTile
+            [localCoord.y + 2]
+            [localCoord.x + 2];
+
+    vec3 currentPixel =
+        sharedTile
+            [localCoord.y + 1]
+            [localCoord.x + 1];
+
+    float baseLumaCheck =
+        dot(
+            currentPixel,
+            LUMA_WEIGHTS
+        );
+
+    float subgroupActive =
+        subgroupAdd(
+            activeWeight
+        );
+
+    float subgroupMeanLuma =
+        subgroupAdd(
+            baseLumaCheck *
+            activeWeight
+        )
+        /
+        max(
+            subgroupActive,
+            1.0
+        );
+
+    vec3 preliminaryChroma =
+        currentPixel -
+        vec3(baseLumaCheck);
+
+    float preliminaryChromaMagnitude =
+        dot(
+            preliminaryChroma,
+            preliminaryChroma
+        );
+
+    buildWorkgroupLumaChroma(
+        baseLumaCheck,
+        preliminaryChromaMagnitude,
+        activeWeight
+    );
+
+    float autoExposureGain =
+        clamp(
+            0.5 /
+            max(
+                workgroupMeanLuma +
+                0.05,
+                0.001
+            ),
+            0.75,
+            1.65
+        );
+
+    vec3 currentPixelPreExposure =
+        currentPixel;
+
+    currentPixel *=
+        autoExposureGain;
+
+    float postExposureLuma =
+        dot(
+            currentPixel,
+            LUMA_WEIGHTS
+        );
+
+    vec3 chrominance =
+        currentPixel -
+        vec3(baseLumaCheck);
+
+    float chrominanceMagnitude =
+        dot(
+            chrominance,
+            chrominance
+        );
+
+    float subgroupChromaCount =
+        subgroupAdd(
+            activeWeight
+        );
+
+    float subgroupChromaMean =
+        subgroupAdd(
+            chrominanceMagnitude *
+            activeWeight
+        )
+        /
+        max(
+            subgroupChromaCount,
+            1.0
+        );
+
+    if (
+        chrominanceMagnitude >
+        subgroupChromaMean *
+        2.5
+    )
+    {
+        currentPixel =
+            mix(
+                currentPixel,
+                vec3(baseLumaCheck),
+                0.65
+            );
+    }
+
+    if (
+        chrominanceMagnitude >
+        max(
+            workgroupMeanChroma,
+            EPSILON
+        )
+        *
+        2.5
+    )
+    {
+        currentPixel =
+            mix(
+                currentPixel,
+                vec3(postExposureLuma),
+                0.65
+            );
+    }
+
+    ivec3 historyExtent3D =
+        imageSize(
+            historyRingBuffer
+        );
+
+    ivec2 historySize =
+        max(
+            historyExtent3D.xy,
+            ivec2(1)
+        );
+
+    int historyLayerCount =
+        max(
+            historyExtent3D.z,
+            0
+        );
+
+    bool history0Valid =
+        historyLogicalValid(
+            0,
+            historyLayerCount
+        );
+
+    vec3 h0 =
+        sampleHistoryBilinear(
+            vec2(pixelCoord),
+            vec2(0.0),
+            0,
+            processingSize,
+            historySize,
+            historyLayerCount
+        );
+
+    vec3 dx =
+        (
+            right -
+            left
+        )
+        *
+        0.5
+        +
+        (
+            tr -
+            tl +
+            br -
+            bl
+        )
+        *
+        0.25;
+
+    vec3 dy =
+        (
+            bottom -
+            top
+        )
+        *
+        0.5
+        +
+        (
+            bl -
+            tl +
+            br -
+            tr
+        )
+        *
+        0.25;
+
+    float edgeStrength =
+        length(dx) +
+        length(dy);
+
+    float localMean =
+        (
+            left.g +
+            right.g +
+            top.g +
+            bottom.g +
+            currentPixel.g
+        )
+        *
+        0.2;
+
+    float localVariance =
+        abs(
+            currentPixel.g -
+            localMean
+        );
+
+    float adaptiveContrast =
+        mix(
+            1.0,
+            1.25,
+            clamp(
+                localVariance * 4.0,
+                0.0,
+                1.0
+            )
+        );
+
+    vec3 dt_flow =
+        currentPixelPreExposure -
+        h0;
+
+    float gradSqSum =
+        dot(dx, dx) +
+        dot(dy, dy) +
+        0.001;
+
+    vec2 calculatedOpticalFlow =
+        -vec2(
+            dot(dx, dt_flow),
+            dot(dy, dt_flow)
+        )
+        /
+        max(
+            gradSqSum,
+            0.001
+        );
+
+    calculatedOpticalFlow =
+        clamp(
+            safeFiniteVec2(
+                calculatedOpticalFlow,
+                vec2(0.0)
+            ),
+            vec2(-32.0),
+            vec2(32.0)
+        );
+
+    if (!history0Valid)
+        calculatedOpticalFlow =
+            vec2(0.0);
+
+    vec2 motionVector =
+        calculatedOpticalFlow +
+        vec2(
+            -gyroShift.x,
+            -gyroShift.y
+        )
+        *
+        0.15;
+
+    motionVector =
+        clamp(
+            safeFiniteVec2(
+                motionVector,
+                vec2(0.0)
+            ),
+            vec2(-32.0),
+            vec2(32.0)
+        );
+
+    if (!history0Valid)
+        motionVector =
+            vec2(0.0);
+
+    h0 =
+        sampleHistoryBilinear(
+            vec2(pixelCoord),
+            -motionVector,
+            0,
+            processingSize,
+            historySize,
+            historyLayerCount
+        );
+
+    vec3 h1 =
+        sampleHistoryBilinear(
+            vec2(pixelCoord),
+            -motionVector,
+            1,
+            processingSize,
+            historySize,
+            historyLayerCount
+        );
+
+    vec3 h2 =
+        sampleHistoryBilinear(
+            vec2(pixelCoord),
+            -motionVector,
+            2,
+            processingSize,
+            historySize,
+            historyLayerCount
+        );
+
+    vec3 h3 =
+        sampleHistoryBilinear(
+            vec2(pixelCoord),
+            -motionVector,
+            3,
+            processingSize,
+            historySize,
+            historyLayerCount
+        );
+
+    vec3 h4 =
+        sampleHistoryBilinear(
+            vec2(pixelCoord),
+            -motionVector,
+            4,
+            processingSize,
+            historySize,
+            historyLayerCount
+        );
+
+    float w0 =
+        historyLogicalWeight(
+            0,
+            historyLayerCount
+        );
+
+    float w1 =
+        historyLogicalWeight(
+            1,
+            historyLayerCount
+        );
+
+    float w2 =
+        historyLogicalWeight(
+            2,
+            historyLayerCount
+        );
+
+    float w3 =
+        historyLogicalWeight(
+            3,
+            historyLayerCount
+        );
+
+    float w4 =
+        historyLogicalWeight(
+            4,
+            historyLayerCount
+        );
+
+    float historyWeightSum =
+        w0 +
+        w1 +
+        w2 +
+        w3 +
+        w4;
+
+    vec3 stackedHistory =
+        currentPixel;
+
+    if (
+        historyWeightSum >
+        EPSILON
+    )
+    {
+        stackedHistory =
+            (
+                h0 * w0 +
+                h1 * w1 +
+                h2 * w2 +
+                h3 * w3 +
+                h4 * w4
+            )
+            /
+            historyWeightSum;
+    }
+
+    vec3 boxMin =
+        min(
+            min(
+                min(left, right),
+                min(top, bottom)
+            ),
+            currentPixel
+        );
+
+    vec3 boxMax =
+        max(
+            max(
+                max(left, right),
+                max(top, bottom)
+            ),
+            currentPixel
+        );
+
+    stackedHistory =
+        clamp(
+            stackedHistory,
+            boxMin,
+            boxMax
+        );
+
+    vec3 diffH0 =
+        abs(
+            currentPixel -
+            h0
+        );
+
+    float disocclusionMetric =
+        diffH0.r +
+        diffH0.g +
+        diffH0.b;
+
+    float disocclusionMask =
+        history0Valid
+        ? smoothstep(
+            0.04,
+            0.30,
+            disocclusionMetric
+        )
+        : 1.0;
+
+    float currentLumaCore =
+        dot(
+            currentPixel,
+            LUMA_WEIGHTS
+        );
+
+    float varianceDelta =
+        abs(
+            currentLumaCore -
+            subgroupMeanLuma
+        );
+
+    float registerConfidence =
+        clamp(
+            1.0 -
+            varianceDelta * 5.0,
+            0.05,
+            0.95
+        )
+        *
+        thermalShieldFactor;
+
+    float effectiveHistoryWeight =
+        (
+            1.0 -
+            disocclusionMask
+        )
+        *
+        registerConfidence
+        *
+        0.85;
+
+    effectiveHistoryWeight =
+        clamp(
+            effectiveHistoryWeight,
+            0.0,
+            1.0
+        );
+
+    vec3 accumulatedCore =
+        mix(
+            currentPixel,
+            stackedHistory,
+            effectiveHistoryWeight
+        );
+
+    vec3 rgb =
+        mix(
+            currentPixel,
+            accumulatedCore,
+            registerConfidence
+        );
+
+    float temporalMotionWeight =
+        clamp(
+            length(motionVector) *
+            0.08,
+            0.0,
+            0.18
+        )
+        *
+        (
+            1.0 -
+            disocclusionMask
+        );
+
+    rgb =
+        mix(
+            rgb,
+            stackedHistory,
+            temporalMotionWeight
+        );
+
+    vec3 lumaWeights =
+        LUMA_WEIGHTS;
+
+    float luma =
+        dot(
+            rgb,
+            lumaWeights
+        );
+
+    vec3 noiseDeviation =
+        abs(
+            rgb -
+            vec3(luma)
+        );
+
+    float noiseMask =
+        noiseDeviation.r +
+        noiseDeviation.g +
+        noiseDeviation.b;
+
+    buildWorkgroupNoise(
+        noiseMask,
+        activeWeight
+    );
+
+    if (
+        noiseMask <
+        (
+            0.05 +
+            workgroupMeanNoise *
+            0.1
+        )
+    )
+    {
+        rgb =
+            mix(
+                vec3(luma),
+                rgb,
+                0.90
+            );
+    }
+
+    if (
+        luma < 0.20
+    )
+    {
+        float photonBoost =
+            1.0 +
+            (
+                (
+                    0.20 -
+                    luma
+                )
+                *
+                7.5
+            );
+
+        rgb =
+            min(
+                vec3(1.0),
+                rgb *
+                photonBoost
+            );
+    }
+
+    float dualIsoBoost =
+        1.0 +
+        (
+            pow(
+                clamp(
+                    1.0 -
+                    luma,
+                    0.0,
+                    1.0
+                ),
+                3.0
+            )
+            *
+            5.0
+        );
+
+    rgb =
+        min(
+            vec3(1.0),
+            rgb *
+            dualIsoBoost
+        );
+
+    float highlightThreshold =
+        0.75;
+
+    if (
+        luma >
+        highlightThreshold
+    )
+    {
+        float overBright =
+            luma -
+            highlightThreshold;
+
+        float softRolloff =
+            highlightThreshold +
+            overBright /
+            (
+                1.0 +
+                overBright *
+                1.5
+            );
+
+        rgb *=
+            softRolloff /
+            max(
+                luma,
+                0.0001
+            );
+    }
+
+    float localToneWeight =
+        smoothstep(
+            0.1,
+            0.9,
+            luma
+        );
+
+    vec3 shadowLift =
+        rgb *
+        1.12;
+
+    vec3 highlightCompress =
+        rgb /
+        (
+            1.0 +
+            rgb
+        );
+
+    rgb =
+        mix(
+            shadowLift,
+            highlightCompress,
+            localToneWeight
+        );
+
+    vec3 laplacian =
+        (
+            left +
+            right +
+            top +
+            bottom
+        )
+        -
+        (
+            rgb *
+            4.0
+        );
+
+    vec3 hyperSharp =
+        rgb -
+        laplacian *
+        (
+            0.8 *
+            thermalShieldFactor
+        );
+
+    float safeZoom =
+        safeFinite(
+            pc.zoomFactor,
+            1.0
+        );
+
+    if (
+        safeZoom > 1.2 &&
+        thermalShieldFactor > 0.6
+    )
+    {
+        float flatIndex =
+            float(pixelCoord.y) *
+            float(
+                max(
+                    processingSize.x,
+                    1
+                )
+            )
+            +
+            float(pixelCoord.x);
+
+        float ganTextureGen =
+            sin(
+                flatIndex *
+                23.45
+            )
+            *
+            0.07
+            *
+            (
+                safeZoom /
+                2.0
+            );
+
+        rgb =
+            clamp(
+                rgb +
+                vec3(ganTextureGen),
+                vec3(0.0),
+                vec3(1.0)
+            );
+    }
+
+    bool isSkinTone =
+        rgb.r > 0.35 &&
+        rgb.g > 0.25 &&
+        rgb.b > 0.15 &&
+        rgb.r > rgb.g &&
+        rgb.g > rgb.b;
+
+    vec3 skinAvg =
+        (
+            left +
+            right +
+            top +
+            bottom
+        )
+        *
+        0.25;
+
+    vec3 sssGlow =
+        mix(
+            rgb,
+            skinAvg *
+            1.15,
+            smoothstep(
+                0.15,
+                0.02,
+                edgeStrength
+            )
+        );
+
+    if (
+        isSkinTone
+    )
+    {
+        rgb =
+            sssGlow;
+
+        rgb.r *= 1.10;
+        rgb.g *= 1.04;
+        rgb.b *= 0.93;
+    }
+
+    float microWeave =
+        sin(
+            float(pixelCoord.x) *
+            2.5
+        )
+        *
+        cos(
+            float(pixelCoord.y) *
+            2.5
+        );
+
+    vec3 fabricEnhanced =
+        rgb +
+        vec3(
+            microWeave *
+            0.035 *
+            edgeStrength
+        );
+
+    vec3 boxBlur =
+        (
+            left +
+            right +
+            top +
+            bottom +
+            tl +
+            tr +
+            bl +
+            br +
+            rgb
+        )
+        /
+        9.0;
+
+    vec3 detailMask =
+        rgb -
+        boxBlur;
+
+    rgb +=
+        detailMask *
+        0.25 *
+        (
+            1.0 -
+            edgeStrength
+        );
+
+    float edgeMask =
+        smoothstep(
+            0.02,
+            0.25,
+            edgeStrength
+        );
+
+    vec3 guidedFiltered =
+        mix(
+            fabricEnhanced,
+            hyperSharp,
+            edgeMask
+        );
+
+    rgb =
+        mix(
+            guidedFiltered,
+            guidedFiltered *
+            adaptiveContrast,
+            0.5
+        );
+
+    vec3 perceptualColor =
+        rgbToJzAzBz(rgb);
+
+    perceptualColor.x *=
+        1.02;
+
+    rgb =
+        jzAzBzToRgb(
+            perceptualColor
+        );
+
+    float normalizedX =
+        float(pixelCoord.x) /
+        float(
+            max(
+                processingSize.x,
+                1
+            )
+        );
+
+    float normalizedY =
+        float(pixelCoord.y) /
+        float(
+            max(
+                processingSize.y,
+                1
+            )
+        );
+
+    vec4 ndcPos =
+        pc.viewMatrix *
+        vec4(
+            normalizedX,
+            normalizedY,
+            clamp(
+                luma,
+                0.0,
+                1.0
+            ),
+            1.0
+        );
+
+    ndcPos =
+        safeFiniteVec4(
+            ndcPos,
+            vec4(
+                0.0,
+                0.0,
+                1.0,
+                1.0
+            )
+        );
+
+    float depthFactor =
+        clamp(
+            safeFinite(
+                ndcPos.z *
+                0.1,
+                1.0
+            ),
+            0.9,
+            1.1
+        );
+
+    float depthBlurFactor =
+        smoothstep(
+            0.85,
+            1.15,
+            depthFactor
+        );
+
+    vec3 bokehBlurred =
+        mix(
+            rgb,
+            boxBlur,
+            (
+                1.0 -
+                depthBlurFactor
+            )
+            *
+            0.35
+            *
+            clamp(
+                safeZoom - 1.0,
+                0.0,
+                1.0
+            )
+        );
+
+    rgb =
+        mix(
+            rgb,
+            bokehBlurred,
+            0.5
+        );
+
+    rgb *=
+        depthFactor;
+
+    float quantumInterference =
+        sin(
+            float(pixelCoord.x) *
+            12.9898 +
+            float(pixelCoord.y) *
+            78.233
+        )
+        *
+        43758.5453;
+
+    float subPixelPhase =
+        fract(
+            quantumInterference
+        )
+        *
+        0.04
+        *
+        (
+            1.0 -
+            edgeStrength
+        );
+
+    rgb +=
+        vec3(
+            subPixelPhase *
+            (
+                1.0 -
+                luma
+            )
+        );
+
+    rgb =
+        max(
+            safeFiniteVec3(
+                rgb,
+                vec3(0.0)
+            ),
+            vec3(0.0)
+        );
+
+    vec3 r_num =
+        rgb *
+        (
+            2.51 *
+            rgb +
+            0.03
+        );
+
+    vec3 r_den =
+        rgb *
+        (
+            2.43 *
+            rgb +
+            0.59
+        )
+        +
+        0.14;
+
+    rgb =
+        clamp(
+            r_num /
+            max(
+                r_den,
+                vec3(0.0001)
+            ),
+            vec3(0.0),
+            vec3(1.0)
+        );
+
+    rgb.r *=
+        1.15;
+
+    rgb.b *=
+        0.88;
+
+    float finalLuma =
+        clamp(
+            dot(
+                rgb,
+                LUMA_WEIGHTS
+            ),
+            0.0,
+            1.0
+        );
+
+    float volumetricDepthMask =
+        1.8 +
+        safeZoom *
+        0.25;
+
+    rgb =
+        mix(
+            vec3(finalLuma),
+            rgb,
+            volumetricDepthMask
+        );
+
+    rgb =
+        clamp(
+            rgb,
+            vec3(0.0),
+            vec3(1.0)
+        );
+
+    float masterBalanceWeight =
+        clamp(
+            1.0 -
+            edgeStrength *
+            0.15 +
+            finalLuma *
+            0.05,
+            0.85,
+            1.0
+        );
+
+    rgb =
+        mix(
+            currentPixel,
+            rgb,
+            masterBalanceWeight *
+            thermalShieldFactor
+        );
+
+    rgb =
+        clamp(
+            safeFiniteVec3(
+                rgb,
+                currentPixel
+            ),
+            vec3(0.0),
+            vec3(1.0)
+        );
+
+    if (!activePixel)
+        return;
+
+    imageStore(
+        outputImage,
+        pixelCoord,
+        vec4(rgb, 1.0)
+    );
+}
+
+
